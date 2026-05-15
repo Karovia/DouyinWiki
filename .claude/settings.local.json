@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(update-config)",
+      "Bash(chmod +x *)",
+      "Bash(bash .claude/hooks/task-review.sh)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/task-review.sh",
+            "statusMessage": "正在执行任务结束审查..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "agent",
+            "prompt": "你是一名代码审查专家。本次有文件被修改，你需要进行分层深度审查。\n\n【强制约束】\n你只能使用 Read、Glob、Grep 工具读取和分析代码。严禁使用 Write、Edit、Bash 等会修改文件或执行命令的工具。这是强制规则，违反会导致审查结果不可信。\n\nHook 输入: $ARGUMENTS\n\n【审查流程】\n\n第一阶段：规范合规检查\n1. 从 hook 输入 JSON 提取被修改的文件路径（tool_input.file_path 或 tool_response.filePath）\n2. 读取 .wiki/coding-standards.md 了解全部规范\n3. 读取被修改的文件内容\n4. 如需理解上下文，可使用 Glob/Grep 读取相关文件（如接口定义、类型声明等），但不得修改任何文件\n5. 按照以下维度逐项检查：\n   - 架构分层：是否正确位于 API Gateway / Application / Domain / Infrastructure / Worker 层，是否存在跨层调用\n   - 接口抽象：LLM/ASR/Embedding/VectorStore/DouyinConnector 是否通过接口调用，而非直接实例化\n   - 命名规范：数据库 snake_case 复数表名、TypeScript PascalCase 接口类名、camelCase 方法、UPPER_SNAKE_CASE 常量\n   - 多租户隔离：所有查询是否强制带 workspace_id / workspaceId filter，向量检索 metadata 是否过滤\n   - 状态机：任务状态转换是否合规，是否禁止跳步\n   - 错误码：是否使用 PARSE_/ASR_/LLM_/VEC_/JOB_ 前缀\n   - 缓存：摘要和 Embedding 是否使用 content_hash 缓存去重\n   - 幂等：ingestion_jobs 是否正确使用幂等键\n\n第二阶段：代码质量深度检查\n6. 检查代码质量：\n   - 重复代码或可以提取的公共逻辑\n   - 空值、边界、异常处理是否完善\n   - 类型安全（any 滥用、类型断言）\n   - 异步处理是否正确（Promise、await、错误捕获）\n   - 性能隐患（N+1 查询、大对象深拷贝、不必要的循环）\n   - 安全（SQL 注入、XSS、命令注入风险）\n\n【输出格式 - 二选一】\n\n如果所有检查通过，输出：\n=======================================\n【审查通过】✅\n文件：<文件路径>\n\n规范合规项：\n- <列出所有确认符合的规范项>\n\nRoadmap 更新建议：\n本次修改实现了 <功能描述>，对应 .wiki/development-roadmap.md 中的 <Phase X：阶段名>。\n建议主 Agent 将 Roadmap 中该阶段的核心目标标记为已完成。\n=======================================\n\n如果发现任何问题（包括规范违规或质量缺陷），输出：\n=======================================\n【审查不通过】❌\n文件：<文件路径>\n\n问题列表（按严重程度排序）：\n\n### ⚠️ 高优先级（必须修复）\n1. [位置：行号或函数名] <问题描述>\n   - 不符合规范：<具体条款>\n   - 修复建议：<具体怎么做>\n   - 参考代码：\n   ```typescript\n   // 修复后的代码示例\n   ```\n\n### 📋 中优先级（建议修复）\n...\n\n### 💡 低优先级（可选优化）\n...\n\n【主 Agent 修复指令】\n主 Agent 收到此结果后，应按照上述修复建议逐项修改代码。\n修复完成后，相关修改会再次触发本审查流程。\n=======================================",
+            "timeout": 120,
+            "statusMessage": "Agent 正在审查代码规范..."
+          }
+        ]
+      }
+    ]
+  }
+}

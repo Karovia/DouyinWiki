@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>抖音Wiki - 架构修订版PRD文档</title>
+    <style>
+        /* Self-hosted font fallback */
+        @font-face {
+            font-family: 'Noto Serif SC';
+            src: local('Noto Serif SC'), local('Songti SC'), local('SimSun');
+        }
+        @font-face {
+            font-family: 'Noto Sans SC';
+            src: local('Noto Sans SC'), local('PingFang SC'), local('Microsoft YaHei');
+        }
+    </style>
+    <style>
+        /* ========== RESET & BASE ========== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Noto Serif SC', 'Songti SC', serif;
+            font-size: 11pt;
+            line-height: 1.75;
+            color: #2c2c2c;
+            text-align: justify;
+            text-align-last: left;
+        }
+
+        /* ========== PAGE SETUP ========== */
+        @page {
+            size: A4;
+            margin: 2.5cm 2cm;
+            @top-center { content: string(doctitle); font-size: 9pt; color: #999; }
+            @bottom-center { content: counter(page); font-size: 9pt; color: #999; }
+        }
+        @page :first { margin: 0; @top-center { content: none; } @bottom-center { content: none; } }
+        @page cover { @top-center { content: none; } @bottom-center { content: none; } }
+        @page toc { @top-center { content: none; } @bottom-center { content: none; } }
+
+        body { string-set: doctitle ""; }
+        h1 { string-set: doctitle content(); }
+
+        /* ========== COVER ========== */
+        .cover {
+            page: cover;
+            width: 210mm;
+            height: 297mm;
+            margin: 0;
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%);
+            page-break-after: always;
+        }
+        .cover::before {
+            content: '';
+            position: absolute;
+            top: -80px;
+            right: -120px;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(231, 76, 60, 0.15) 0%, transparent 70%);
+        }
+        .cover::after {
+            content: '';
+            position: absolute;
+            bottom: -100px;
+            left: -100px;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(52, 152, 219, 0.12) 0%, transparent 70%);
+        }
+        .cover-deco1 {
+            position: absolute;
+            top: 60px;
+            left: 40px;
+            width: 80px;
+            height: 80px;
+            border: 2px solid rgba(255,255,255,0.08);
+            border-radius: 50%;
+        }
+        .cover-deco2 {
+            position: absolute;
+            top: 120px;
+            right: 80px;
+            width: 40px;
+            height: 40px;
+            background: rgba(231, 76, 60, 0.3);
+            border-radius: 8px;
+            transform: rotate(15deg);
+        }
+        .cover-deco3 {
+            position: absolute;
+            bottom: 200px;
+            right: 60px;
+            width: 120px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        }
+        .cover-deco4 {
+            position: absolute;
+            bottom: 160px;
+            left: 50px;
+            width: 60px;
+            height: 60px;
+            border: 1.5px solid rgba(52, 152, 219, 0.25);
+            border-radius: 50%;
+        }
+        .cover-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+        .cover-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            width: 75%;
+            z-index: 10;
+        }
+        .cover-badge {
+            display: inline-block;
+            padding: 6px 20px;
+            border: 1px solid rgba(231, 76, 60, 0.5);
+            color: #e74c3c;
+            font-family: 'Noto Sans SC', sans-serif;
+            font-size: 10pt;
+            letter-spacing: 3px;
+            margin-bottom: 30px;
+        }
+        .cover-title {
+            font-family: 'Noto Sans SC', sans-serif;
+            font-size: 42pt;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: 6px;
+            margin-bottom: 12px;
+        }
+        .cover-subtitle {
+            font-family: 'Noto Sans SC', sans-serif;
+            font-size: 14pt;
+            font-weight: 300;
+            color: rgba(255,255,255,0.6);
+            letter-spacing: 8px;
+            margin-bottom: 60px;
+        }
+        .cover-divider {
+            width: 60px;
+            height: 2px;
+            background: linear-gradient(90deg, #e74c3c, #3498db);
+            margin: 0 auto 40px;
+        }
+        .cover-meta {
+            font-family: 'Noto Sans SC', sans-serif;
+            font-size: 10pt;
+            color: rgba(255,255,255,0.45);
+            line-height: 2.2;
+        }
+
+        /* ========== TOC ========== */
+        .toc-page { page: toc; page-break-after: always; }
+        .toc-title {
+            font-family: 'Noto Sans SC', sans-serif;
+            font-size: 22pt;
+            font-weight: 700;
+            color: #1a1a2e;
+            text-align: center;
+            margin-bottom: 40px;
+            padding-top: 20px;
+        }
+        .toc { list-style: none; padding: 0; }
+        .toc li { margin-bottom: 8px; }
+        .toc a {
+            text-decoration: none;
+            color: #2c2c2c;
+            display: flex;
+            align-items: baseline;
+        }
+        .toc a::after {
+            content: leader('.') target-counter(attr(href url), page);
+            flex: 1;
+            text-align: right;
+            color: #999;
+        }
+        .toc .toc-l1 { font-weight: 600; font-size: 11pt; }
+        .toc .toc-l2 { padding-left: 2em; font-size: 10.5pt; color: #555; }
+        .toc .toc-l3 { padding-left: 4em; font-size: 10pt; color: #777; }
+
+        /* ========== HEADINGS ========== */
+        h1 {
+            font-family: 'Noto Sans SC', sans-serif;
+            font-size: 20pt;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin: 30px 0 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e74c3c;
+            page-break-after: avoid;
+        }
+        h2 {
+            font-family: 'Noto Sans SC', sans-serif;
+            font-size: 14pt;
+            font-weight: 600;
+            color: #16213e;
+            margin: 25px 0 12px;
+            padding-left: 12px;
+            border-left: 4px solid #3498db;
+            page-break-after: avoid;
+        }
+        h3 {
+            font-family: 'Noto Sans SC', sans-serif;
+            font-size: 12pt;
+            font-weight: 600;
+            color: #2c3e50;
+            margin: 18px 0 10px;
+            page-break-after: avoid;
+        }
+
+        /* ========== TABLES ========== */
+        table {
+            width: 100%;
+            max-width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+            font-size: 10pt;
+            page-break-inside: avoid;
+        }
+        caption {
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-align: left;
+            color: #333;
+        }
+        caption::before { content: attr(data-label) "  "; font-weight: bold; }
+        thead { border-top: 2px solid #333; border-bottom: 1px solid #333; }
+        tbody { border-bottom: 2px solid #333; }
+        th, td { padding: 8px 10px; text-align: left; }
+        th { font-weight: 600; background: #f9f9f9; }
+        tr { page-break-inside: avoid; }
+        thead { display: table-header-group; }
+
+        /* ========== CODE ========== */
+        pre, code {
+            font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+            font-size: 9.5pt;
+        }
+        code {
+            background: #f0f0f0;
+            padding: 1px 5px;
+            border-radius: 3px;
+            word-break: break-word;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 14px 16px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin: 12px 0;
+            border-left: 3px solid #ccc;
+        }
+        pre code { background: none; padding: 0; }
+
+        /* ========== CALLOUT BOXES ========== */
+        .info-box {
+            border-left: 4px solid #3498db;
+            background: #f0f7ff;
+            padding: 14px 18px;
+            margin: 16px 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .info-box-title {
+            font-weight: 600;
+            color: #2980b9;
+            margin-bottom: 6px;
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        .warn-box {
+            border-left: 4px solid #e67e22;
+            background: #fef5e7;
+            padding: 14px 18px;
+            margin: 16px 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .warn-box-title {
+            font-weight: 600;
+            color: #d35400;
+            margin-bottom: 6px;
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        .success-box {
+            border-left: 4px solid #27ae60;
+            background: #eafaf1;
+            padding: 14px 18px;
+            margin: 16px 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .success-box-title {
+            font-weight: 600;
+            color: #1e8449;
+            margin-bottom: 6px;
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+
+        /* ========== FIGURES ========== */
+        figure {
+            margin: 18px 0;
+            page-break-inside: avoid;
+            text-align: center;
+        }
+        figure img, figure svg {
+            max-width: 90%;
+            max-height: 35vh;
+            height: auto;
+        }
+        figcaption {
+            font-size: 10pt;
+            color: #666;
+            margin-top: 8px;
+        }
+        figcaption::before { content: attr(data-label) "  "; font-weight: bold; }
+
+        /* ========== LISTS ========== */
+        ul, ol { margin: 10px 0; padding-left: 2em; }
+        li { margin-bottom: 5px; }
+
+        /* ========== OVERFLOW PREVENTION ========== */
+        pre, table, figure, img, svg, blockquote {
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        a { word-break: break-all; color: #2980b9; text-decoration: none; }
+
+        /* ========== SECTION SPACING ========== */
+        .section { margin-bottom: 20px; }
+        p { margin: 10px 0; }
+
+        /* ========== MERMAID ========== */
+        .mermaid {
+            max-width: 100%;
+            margin: 16px 0;
+            text-align: center;
+        }
+
+        /* ========== ARCH DIAGRAM ========== */
+        .arch-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            margin: 16px 0;
+            font-family: 'Noto Sans SC', sans-serif;
+            font-size: 10pt;
+        }
+        .arch-layer {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            margin: 4px 0;
+            border-radius: 4px;
+        }
+        .arch-layer-label {
+            width: 100px;
+            font-weight: 600;
+            font-size: 9pt;
+            color: #666;
+            flex-shrink: 0;
+        }
+        .arch-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            flex: 1;
+        }
+        .arch-item {
+            padding: 6px 14px;
+            border-radius: 4px;
+            font-size: 9.5pt;
+            border: 1px solid;
+        }
+        .arch-presentation { background: #fef5e7; border-color: #f39c12; color: #7d5a00; }
+        .arch-core { background: #e8f5e9; border-color: #4caf50; color: #2e7d32; }
+        .arch-data { background: #e3f2fd; border-color: #2196f3; color: #1565c0; }
+        .arch-infra { background: #f3e5f5; border-color: #9c27b0; color: #6a1b9a; }
+        .arch-external { background: #fce4ec; border-color: #e91e63; color: #880e4f; }
+    </style>
+
+
+    
+<style>
+    .revision-badge { display:inline-block; padding:3px 9px; border-radius:12px; font-size:8.5pt; font-family:'Noto Sans SC', sans-serif; background:#e8f5e9; color:#2e7d32; border:1px solid #4caf50; }
+    .deprecated-badge { display:inline-block; padding:3px 9px; border-radius:12px; font-size:8.5pt; font-family:'Noto Sans SC', sans-serif; background:#fff3e0; color:#e65100; border:1px solid #fb8c00; }
+    .new-badge { display:inline-block; padding:3px 9px; border-radius:12px; font-size:8.5pt; font-family:'Noto Sans SC', sans-serif; background:#e3f2fd; color:#1565c0; border:1px solid #2196f3; }
+    .arch-flow { display:flex; align-items:center; justify-content:center; gap:7px; flex-wrap:wrap; margin:18px 0; font-family:'Noto Sans SC', sans-serif; font-size:9pt; }
+    .flow-box { padding:8px 12px; border-radius:4px; border:1px solid #ccc; background:#f9f9f9; color:#333; }
+    .flow-arrow { color:#999; }
+    .decision-table td:first-child { font-weight:600; color:#16213e; }
+    .mono-small { font-family:'SF Mono','Monaco','Consolas',monospace; font-size:9pt; }
+    .section-note { font-size:10pt; color:#666; margin-top:-6px; }
+    .score-card { display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin:16px 0; font-family:'Noto Sans SC', sans-serif; }
+    .score-card div { border:1px solid #ddd; border-radius:6px; padding:10px; background:#fafafa; }
+    .score-card strong { display:block; color:#16213e; margin-bottom:4px; }
+</style>
+
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<div class="cover">
+    <div class="cover-grid"></div>
+    <div class="cover-deco1"></div>
+    <div class="cover-deco2"></div>
+    <div class="cover-deco3"></div>
+    <div class="cover-deco4"></div>
+    <div class="cover-content">
+        <div class="cover-badge">ARCHITECTURE REVISION</div>
+        <h1 class="cover-title">抖音Wiki</h1>
+        <p class="cover-subtitle">智能视频知识库系统</p>
+        <div class="cover-divider"></div>
+        <div class="cover-meta">
+            <p>架构修订版：从同步解析型 Web 应用升级为异步内容处理与 RAG 知识入库平台</p>
+            <p>数据源治理 / 异步流水线 / Chunk 级检索 / 图谱离线计算 / 多租户隔离</p>
+            <p style="margin-top: 30px;">2026年5月</p>
+        </div>
+    </div>
+</div>
+
+<!-- ============ TOC ============ -->
+<div class="toc-page">
+    <h2 class="toc-title">目 录</h2>
+    <ul class="toc">
+        <li class="toc-l1"><a href="#sec0">零、修订说明</a></li>
+        <li class="toc-l1"><a href="#sec1">一、项目定位与架构原则</a></li>
+        <li class="toc-l2"><a href="#sec1-1">1.1 产品定位</a></li>
+        <li class="toc-l2"><a href="#sec1-2">1.2 架构目标</a></li>
+        <li class="toc-l2"><a href="#sec1-3">1.3 设计边界</a></li>
+        <li class="toc-l1"><a href="#sec2">二、目标系统架构</a></li>
+        <li class="toc-l2"><a href="#sec2-1">2.1 总体架构</a></li>
+        <li class="toc-l2"><a href="#sec2-2">2.2 服务分层</a></li>
+        <li class="toc-l2"><a href="#sec2-3">2.3 核心链路</a></li>
+        <li class="toc-l1"><a href="#sec3">三、数据源与合规边界</a></li>
+        <li class="toc-l1"><a href="#sec4">四、异步入库流水线</a></li>
+        <li class="toc-l1"><a href="#sec5">五、数据模型设计</a></li>
+        <li class="toc-l1"><a href="#sec6">六、向量检索与 RAG 设计</a></li>
+        <li class="toc-l1"><a href="#sec7">七、知识图谱设计</a></li>
+        <li class="toc-l1"><a href="#sec8">八、API 与前端架构</a></li>
+        <li class="toc-l1"><a href="#sec9">九、安全、可观测性与成本治理</a></li>
+        <li class="toc-l1"><a href="#sec10">十、开发里程碑与验收指标</a></li>
+        <li class="toc-l1"><a href="#sec11">十一、风险与应对策略</a></li>
+        <li class="toc-l1"><a href="#sec12">十二、结论</a></li>
+    </ul>
+</div>
+
+<h1 id="sec0">零、修订说明</h1>
+
+<div class="info-box">
+    <div class="info-box-title">本次修订目标</div>
+    <p>原方案已具备较好的产品方向与基础技术选型，但偏向普通 CRUD Web 应用。修订版将系统重构为「API + Queue + Worker + VectorStore + Job State Machine」架构，以支撑视频解析、转写、摘要、Embedding、图谱计算等高延迟、高失败率、强外部依赖的 AI 内容处理流程。</p>
+</div>
+
+<table class="decision-table">
+    <caption data-label="表0-1">关键架构修订点</caption>
+    <thead>
+        <tr><th>原设计</th><th>修订后设计</th><th>原因</th></tr>
+    </thead>
+    <tbody>
+        <tr><td>同步 video.parse 接口</td><td>异步 import_job + Worker 流水线</td><td>避免接口超时，支持重试、进度、幂等与失败恢复</td></tr>
+        <tr><td>videos 表内直接存 embedding</td><td>videos / transcripts / chunks / embeddings 分表</td><td>支持 Chunk 级 RAG、模型重跑和多版本索引</td></tr>
+        <tr><td>MySQL 向量扩展作为默认向量库</td><td>抽象 VectorStore，MVP 可用 pgvector / Qdrant / Chroma</td><td>避免被单一数据库能力锁死，便于后续扩展</td></tr>
+        <tr><td>只基于标题和摘要检索</td><td>标题摘要 + ASR 转写 + OCR/笔记的混合检索</td><td>提升知识库质量，避免“只管收藏、不懂内容”</td></tr>
+        <tr><td>全量两两计算图谱边</td><td>新增视频 TopK 邻居 + 离线图谱任务</td><td>避免 O(N²) 性能爆炸</td></tr>
+        <tr><td>用户系统 P2</td><td>workspace_id / user_id P0 贯穿所有表</td><td>多租户隔离不能后补，否则迁移成本高</td></tr>
+    </tbody>
+</table>
+
+<h1 id="sec1">一、项目定位与架构原则</h1>
+
+<h2 id="sec1-1">1.1 产品定位</h2>
+
+<p>抖音Wiki定位为「AI 驱动的短视频知识资产管理系统」。它不是简单的视频收藏夹，而是将短视频链接、元数据、口播逐字稿、AI 摘要、标签、实体、向量索引和知识关系统一管理，让用户可以对碎片化短视频内容进行检索、复盘、问答和关联发现。</p>
+
+<div class="score-card">
+    <div><strong>核心对象</strong>短视频内容资产</div>
+    <div><strong>核心能力</strong>解析、转写、摘要、搜索、问答、图谱</div>
+    <div><strong>核心差异</strong>从收藏夹升级为知识库</div>
+    <div><strong>优先场景</strong>个人知识管理 / 创作者素材库 / 企业内容沉淀</div>
+</div>
+
+<h2 id="sec1-2">1.2 架构目标</h2>
+
+<ul>
+    <li><strong>可落地</strong>：MVP 阶段允许使用简化组件，但核心抽象不能阻碍后续扩展。</li>
+    <li><strong>可恢复</strong>：所有外部调用都必须有任务状态、错误码、重试次数和幂等键。</li>
+    <li><strong>可替换</strong>：LLM、Embedding、ASR、VectorStore、DouyinConnector 均通过接口抽象。</li>
+    <li><strong>可观测</strong>：导入成功率、模型耗时、单视频成本、检索命中率、任务失败原因可追踪。</li>
+    <li><strong>可扩展</strong>：支持从单用户本地版演进到多用户 SaaS，不重构核心数据模型。</li>
+</ul>
+
+<h2 id="sec1-3">1.3 设计边界</h2>
+
+<table>
+    <caption data-label="表1-1">能力边界</caption>
+    <thead><tr><th>能力</th><th>本期支持</th><th>说明</th></tr></thead>
+    <tbody>
+        <tr><td>手动链接导入</td><td>支持</td><td>MVP 主路径，用户复制抖音分享链接后导入。</td></tr>
+        <tr><td>官方 OAuth 同步本人视频</td><td>二期支持</td><td>适合创作者或企业号内容管理。</td></tr>
+        <tr><td>自动读取收藏夹</td><td>不作为 SaaS 核心能力</td><td>可作为个人本地插件探索，但不建议作为商业化主链路。</td></tr>
+        <tr><td>视频文件长期存储</td><td>默认不存储</td><td>仅存储元数据、文本、向量和必要的临时处理文件。</td></tr>
+        <tr><td>RAG 问答</td><td>依赖 transcript/chunk 质量</td><td>没有转写文本时，仅提供摘要级搜索，不承诺细粒度问答。</td></tr>
+    </tbody>
+</table>
+
+<h1 id="sec2">二、目标系统架构</h1>
+
+<h2 id="sec2-1">2.1 总体架构</h2>
+
+<p>系统采用事件驱动的分层架构。在线 API 负责接收请求、返回任务状态和查询结果；异步 Worker 负责解析、转写、摘要、向量化和图谱计算；存储层拆分为业务数据库、向量数据库、对象存储和缓存。</p>
+
+<div class="arch-container">
+    <div class="arch-layer">
+        <div class="arch-layer-label">客户端层</div>
+        <div class="arch-items">
+            <div class="arch-item arch-presentation">React Web</div>
+            <div class="arch-item arch-presentation">移动端 H5</div>
+            <div class="arch-item arch-presentation">浏览器插件（可选）</div>
+        </div>
+    </div>
+    <div class="arch-layer">
+        <div class="arch-layer-label">API层</div>
+        <div class="arch-items">
+            <div class="arch-item arch-core">Hono</div>
+            <div class="arch-item arch-core">tRPC</div>
+            <div class="arch-item arch-core">Auth / Workspace</div>
+            <div class="arch-item arch-core">Rate Limit</div>
+        </div>
+    </div>
+    <div class="arch-layer">
+        <div class="arch-layer-label">任务层</div>
+        <div class="arch-items">
+            <div class="arch-item arch-infra">Job Queue</div>
+            <div class="arch-item arch-infra">Retry</div>
+            <div class="arch-item arch-infra">Dead Letter</div>
+            <div class="arch-item arch-infra">Idempotency</div>
+        </div>
+    </div>
+    <div class="arch-layer">
+        <div class="arch-layer-label">Worker层</div>
+        <div class="arch-items">
+            <div class="arch-item arch-core">ParseWorker</div>
+            <div class="arch-item arch-core">ASRWorker</div>
+            <div class="arch-item arch-core">SummaryWorker</div>
+            <div class="arch-item arch-core">EmbeddingWorker</div>
+            <div class="arch-item arch-core">GraphWorker</div>
+        </div>
+    </div>
+    <div class="arch-layer">
+        <div class="arch-layer-label">存储层</div>
+        <div class="arch-items">
+            <div class="arch-item arch-data">MySQL / PostgreSQL</div>
+            <div class="arch-item arch-data">VectorStore</div>
+            <div class="arch-item arch-data">Redis</div>
+            <div class="arch-item arch-data">Object Storage</div>
+        </div>
+    </div>
+    <div class="arch-layer">
+        <div class="arch-layer-label">外部服务</div>
+        <div class="arch-items">
+            <div class="arch-item arch-external">Douyin OpenAPI</div>
+            <div class="arch-item arch-external">解析服务</div>
+            <div class="arch-item arch-external">ASR</div>
+            <div class="arch-item arch-external">LLM</div>
+            <div class="arch-item arch-external">Embedding</div>
+        </div>
+    </div>
+</div>
+
+<h2 id="sec2-2">2.2 服务分层</h2>
+
+<table>
+    <caption data-label="表2-1">服务分层职责</caption>
+    <thead><tr><th>层级</th><th>组件</th><th>职责</th></tr></thead>
+    <tbody>
+        <tr><td>API Gateway</td><td>Hono + tRPC</td><td>参数校验、鉴权、限流、请求路由、SSE/WebSocket 任务进度推送。</td></tr>
+        <tr><td>Application Service</td><td>VideoService / SearchService / ChatService / GraphService</td><td>编排业务流程，不直接处理耗时外部调用。</td></tr>
+        <tr><td>Domain Service</td><td>ContentIngestion / RAGPipeline / GraphBuilder</td><td>定义领域状态机、幂等规则、数据转换和质量评估。</td></tr>
+        <tr><td>Infrastructure Adapter</td><td>DouyinConnector / LLMClient / VectorStore / ASRClient</td><td>封装外部系统，统一超时、重试、错误映射和日志。</td></tr>
+        <tr><td>Worker</td><td>ParseWorker / ASRWorker / EmbeddingWorker</td><td>消费队列任务，执行高延迟处理，写入任务状态和产物表。</td></tr>
+    </tbody>
+</table>
+
+<h2 id="sec2-3">2.3 核心链路</h2>
+
+<div class="arch-flow">
+    <div class="flow-box">用户提交链接</div><span class="flow-arrow">→</span>
+    <div class="flow-box">创建 import_job</div><span class="flow-arrow">→</span>
+    <div class="flow-box">解析元数据</div><span class="flow-arrow">→</span>
+    <div class="flow-box">提取内容</div><span class="flow-arrow">→</span>
+    <div class="flow-box">ASR / OCR</div><span class="flow-arrow">→</span>
+    <div class="flow-box">Chunk 化</div><span class="flow-arrow">→</span>
+    <div class="flow-box">摘要与标签</div><span class="flow-arrow">→</span>
+    <div class="flow-box">Embedding</div><span class="flow-arrow">→</span>
+    <div class="flow-box">向量入库</div><span class="flow-arrow">→</span>
+    <div class="flow-box">图谱边更新</div>
+</div>
+
+<p>链路设计原则：前端提交链接后立即返回任务 ID，不等待解析完成。用户通过任务状态接口或 SSE 看到进度。任务失败时展示可理解的失败原因，并支持用户重试。</p>
+
+<h1 id="sec3">三、数据源与合规边界</h1>
+
+<table>
+    <caption data-label="表3-1">数据源策略</caption>
+    <thead><tr><th>数据源</th><th>优先级</th><th>适用场景</th><th>风险</th><th>架构处理</th></tr></thead>
+    <tbody>
+        <tr><td>用户手动分享链接</td><td>P0</td><td>MVP、个人知识库、少量导入</td><td>解析字段有限、链接可能过期</td><td>以链接解析为入口，缓存解析结果，失败可手动补充标题/笔记。</td></tr>
+        <tr><td>抖音开放平台 OAuth</td><td>P1</td><td>创作者本人视频、企业号视频同步</td><td>权限申请、字段范围有限</td><td>作为官方数据源，单独实现 DouyinOfficialConnector。</td></tr>
+        <tr><td>第三方解析 API</td><td>P1/P2</td><td>补充公开视频元数据</td><td>稳定性、成本、合规风险</td><td>通过 Connector 隔离，配置可关闭，不作为唯一主路径。</td></tr>
+        <tr><td>浏览器策略</td><td>仅本地版可选</td><td>个人研究、本地工具</td><td>易失效、合规和风控风险高</td><td>不进入 SaaS 默认链路，不承诺稳定性。</td></tr>
+        <tr><td>用户手动笔记/字幕</td><td>P0</td><td>解析失败或无法 ASR 时补充内容</td><td>依赖用户输入</td><td>作为高质量知识来源参与 Chunk 和 Embedding。</td></tr>
+    </tbody>
+</table>
+
+<div class="warn-box">
+    <div class="warn-box-title">合规边界</div>
+    <p>商业化版本建议只处理用户主动提交的公开视频链接、用户授权账号的视频数据，以及用户自己补充的笔记/字幕。默认不长期存储视频文件，不提供规避平台限制、绕过风控、批量抓取私密数据的能力。</p>
+</div>
+
+<h1 id="sec4">四、异步入库流水线</h1>
+
+<h2>4.1 任务状态机</h2>
+
+<pre><code>created
+  → parsing_metadata
+  → fetching_content
+  → transcribing
+  → chunking
+  → summarizing
+  → embedding
+  → indexing
+  → graph_updating
+  → completed
+
+failed_retryable
+failed_terminal
+cancelled</code></pre>
+
+<table>
+    <caption data-label="表4-1">任务状态说明</caption>
+    <thead><tr><th>状态</th><th>说明</th><th>是否可重试</th></tr></thead>
+    <tbody>
+        <tr><td>created</td><td>任务已创建，等待队列调度。</td><td>是</td></tr>
+        <tr><td>parsing_metadata</td><td>解析链接、获取标题、作者、封面等元数据。</td><td>是</td></tr>
+        <tr><td>fetching_content</td><td>尝试获取可处理的音频、字幕、页面文本或用户笔记。</td><td>是</td></tr>
+        <tr><td>transcribing</td><td>调用 ASR 服务生成逐字稿。</td><td>是</td></tr>
+        <tr><td>chunking</td><td>按语义、时间戳和 token 长度切分文本。</td><td>是</td></tr>
+        <tr><td>summarizing</td><td>生成视频摘要、知识点、标签和分类。</td><td>是</td></tr>
+        <tr><td>embedding</td><td>对 chunk、摘要、标题等内容生成向量。</td><td>是</td></tr>
+        <tr><td>completed</td><td>入库成功，可搜索、问答和展示。</td><td>否</td></tr>
+        <tr><td>failed_terminal</td><td>确定性失败，例如链接无效、权限不足、内容不存在。</td><td>否</td></tr>
+    </tbody>
+</table>
+
+<h2>4.2 幂等与重试策略</h2>
+
+<ul>
+    <li><strong>幂等键</strong>：<code>workspace_id + platform + platform_video_id</code>，解析前未知 video_id 时使用 <code>normalized_url_hash</code>。</li>
+    <li><strong>重试策略</strong>：网络错误、超时、限流使用指数退避；鉴权失败、链接无效、内容不存在不重试。</li>
+    <li><strong>死信队列</strong>：超过最大重试次数后进入 DLQ，保留上下文用于人工排查。</li>
+    <li><strong>部分成功</strong>：元数据成功但 ASR 失败时，视频仍可进入摘要级知识库，状态标记为 <code>partial_completed</code>。</li>
+</ul>
+
+<h2>4.3 队列选型</h2>
+
+<table>
+    <caption data-label="表4-2">队列选型建议</caption>
+    <thead><tr><th>阶段</th><th>推荐方案</th><th>说明</th></tr></thead>
+    <tbody>
+        <tr><td>本地 MVP</td><td>数据库 job 表 + 定时轮询</td><td>组件最少，便于快速验证。</td></tr>
+        <tr><td>线上 MVP</td><td>Redis + BullMQ</td><td>Node.js 生态成熟，支持延迟、重试、并发控制。</td></tr>
+        <tr><td>规模化</td><td>Kafka / RabbitMQ / 云队列</td><td>适合多 Worker、多租户和高吞吐任务。</td></tr>
+    </tbody>
+</table>
+
+<h1 id="sec5">五、数据模型设计</h1>
+
+<p>数据模型从「单表视频」调整为「主实体 + 内容产物 + 向量索引 + 任务状态」的组合模型。这样可以支持后续重跑模型、重建索引、保留版本和多用户隔离。</p>
+
+<h2>5.1 核心表结构</h2>
+
+<pre><code>users
+- id
+- email
+- name
+- created_at
+
+workspaces
+- id
+- owner_user_id
+- name
+- plan
+- created_at
+
+videos
+- id
+- workspace_id
+- platform              -- douyin / bilibili / xiaohongshu
+- platform_video_id
+- original_url
+- normalized_url_hash
+- share_url
+- title
+- description
+- cover_url
+- author_name
+- author_id
+- duration_seconds
+- visibility
+- source_type           -- share_url / oauth / manual
+- status                -- active / deleted / unavailable
+- created_at
+- updated_at
+
+video_stats
+- id
+- video_id
+- like_count
+- comment_count
+- share_count
+- collect_count
+- collected_at
+
+ingestion_jobs
+- id
+- workspace_id
+- user_id
+- video_id nullable
+- source_type
+- source_payload_json
+- idempotency_key
+- status
+- current_step
+- error_code
+- error_message
+- retry_count
+- max_retry_count
+- started_at
+- finished_at
+- created_at
+- updated_at</code></pre>
+
+<h2>5.2 内容产物表</h2>
+
+<pre><code>transcripts
+- id
+- video_id
+- source                -- asr / subtitle / manual_note / ocr
+- language
+- full_text
+- confidence
+- model_name
+- created_at
+
+chunks
+- id
+- workspace_id
+- video_id
+- transcript_id nullable
+- chunk_index
+- content_type          -- transcript / summary / note / ocr
+- text
+- start_time_ms nullable
+- end_time_ms nullable
+- token_count
+- content_hash
+- created_at
+
+summaries
+- id
+- video_id
+- summary
+- keypoints_json
+- tags_json
+- category
+- entities_json
+- model_name
+- prompt_version
+- input_hash
+- output_schema_version
+- is_user_edited
+- created_at
+
+embeddings
+- id
+- workspace_id
+- owner_type            -- video / chunk / summary
+- owner_id
+- model_name
+- dimension
+- vector_ref
+- content_hash
+- created_at
+
+graph_edges
+- id
+- workspace_id
+- source_video_id
+- target_video_id
+- relation_type         -- same_topic / same_entity / same_author / prerequisite / follow_up
+- weight
+- reason
+- computed_by
+- computed_at</code></pre>
+
+<div class="info-box">
+    <div class="info-box-title">为什么要拆表</div>
+    <p>视频元数据、转写文本、摘要、向量、图谱边的生命周期不同。拆表后，系统可以单独重跑 ASR、重跑摘要、替换 Embedding 模型、重建向量库、重算图谱边，而不会破坏视频主数据。</p>
+</div>
+
+<h1 id="sec6">六、向量检索与 RAG 设计</h1>
+
+<h2>6.1 VectorStore 抽象</h2>
+
+<p>向量检索不直接绑定 MySQL 实现，而是通过接口隔离。MVP 可以使用 Chroma、pgvector 或 Qdrant；后续可以迁移到 Milvus、Vespa 或 Elasticsearch，而不影响业务层。</p>
+
+<pre><code>interface VectorStore {
+  upsert(chunks: VectorChunk[]): Promise&lt;void&gt;
+  search(params: {
+    workspaceId: string;
+    queryEmbedding: number[];
+    topK: number;
+    filters?: SearchFilter;
+  }): Promise&lt;SearchHit[]&gt;;
+  deleteByOwner(ownerType: string, ownerId: string): Promise&lt;void&gt;;
+}</code></pre>
+
+<h2>6.2 检索策略</h2>
+
+<table>
+    <caption data-label="表6-1">检索层级</caption>
+    <thead><tr><th>层级</th><th>检索对象</th><th>作用</th></tr></thead>
+    <tbody>
+        <tr><td>视频级召回</td><td>标题、描述、AI摘要、标签</td><td>快速找到相关视频，适合导航式搜索。</td></tr>
+        <tr><td>Chunk级召回</td><td>逐字稿、OCR、笔记片段</td><td>支持精确问答和定位到视频时间段。</td></tr>
+        <tr><td>混合检索</td><td>BM25 + 向量 + 标签过滤</td><td>兼顾中文关键词、专有名词和语义匹配。</td></tr>
+        <tr><td>Rerank</td><td>候选 chunk / 视频</td><td>提升 TopK 质量，降低无关片段进入上下文。</td></tr>
+    </tbody>
+</table>
+
+<h2>6.3 RAG 问答流程</h2>
+
+<div class="arch-flow">
+    <div class="flow-box">用户问题</div><span class="flow-arrow">→</span>
+    <div class="flow-box">Query Rewrite</div><span class="flow-arrow">→</span>
+    <div class="flow-box">混合召回</div><span class="flow-arrow">→</span>
+    <div class="flow-box">Rerank</div><span class="flow-arrow">→</span>
+    <div class="flow-box">上下文拼装</div><span class="flow-arrow">→</span>
+    <div class="flow-box">LLM回答</div><span class="flow-arrow">→</span>
+    <div class="flow-box">来源引用</div>
+</div>
+
+<pre><code>RAG Context = [
+  {
+    video_id,
+    title,
+    share_url,
+    chunk_text,
+    start_time_ms,
+    end_time_ms,
+    score
+  }
+]</code></pre>
+
+<p>回答必须返回来源视频、片段文本和时间戳。没有足够上下文时，系统应明确提示「知识库中没有找到可靠依据」，避免大模型编造。</p>
+
+<h1 id="sec7">七、知识图谱设计</h1>
+
+<h2>7.1 图谱边生成</h2>
+
+<p>图谱不采用全量两两相似度计算，而是在视频入库或定时任务中对每个视频寻找 TopK 近邻，并写入 <code>graph_edges</code>。这样复杂度从全局 O(N²) 降低为增量 O(N × logN) 或依赖向量库 TopK 搜索。</p>
+
+<pre><code>onVideoIndexed(video):
+  neighbors = vectorStore.search(video.summaryEmbedding, topK=20)
+  for n in neighbors:
+    if n.score &gt; threshold:
+      upsertGraphEdge(video.id, n.videoId, relation_type="same_topic", weight=n.score)</code></pre>
+
+<h2>7.2 关系类型</h2>
+
+<table>
+    <caption data-label="表7-1">图谱关系类型</caption>
+    <thead><tr><th>关系</th><th>生成依据</th><th>展示方式</th></tr></thead>
+    <tbody>
+        <tr><td>same_topic</td><td>摘要/Chunk 向量相似</td><td>默认相似视频边</td></tr>
+        <tr><td>same_author</td><td>作者 ID 相同</td><td>作者系列边</td></tr>
+        <tr><td>same_entity</td><td>实体抽取结果重合</td><td>实体主题边</td></tr>
+        <tr><td>prerequisite</td><td>LLM 判断或人工标注</td><td>学习路径边</td></tr>
+        <tr><td>follow_up</td><td>同系列/发布时间/主题延续</td><td>后续内容边</td></tr>
+    </tbody>
+</table>
+
+<h2>7.3 前端渲染策略</h2>
+
+<ul>
+    <li>默认只加载当前视频的一跳邻居，避免一次性渲染过多节点。</li>
+    <li>支持按分类、作者、标签、时间范围过滤图谱。</li>
+    <li>大图谱使用聚合节点，点击后展开。</li>
+    <li>力导向布局计算可放入 Web Worker，避免阻塞主线程。</li>
+</ul>
+
+<h1 id="sec8">八、API 与前端架构</h1>
+
+<h2>8.1 API 设计</h2>
+
+<table>
+    <caption data-label="表8-1">核心 API</caption>
+    <thead><tr><th>API</th><th>类型</th><th>说明</th></tr></thead>
+    <tbody>
+        <tr><td><code>import.create</code></td><td>mutation</td><td>提交链接或批量链接，创建导入任务。</td></tr>
+        <tr><td><code>import.status</code></td><td>query</td><td>查询导入任务状态、进度、失败原因。</td></tr>
+        <tr><td><code>import.retry</code></td><td>mutation</td><td>重试可恢复失败任务。</td></tr>
+        <tr><td><code>videos.list</code></td><td>query</td><td>分页查看视频 Wiki 卡片。</td></tr>
+        <tr><td><code>videos.detail</code></td><td>query</td><td>查看元数据、摘要、逐字稿、相关视频。</td></tr>
+        <tr><td><code>search.semantic</code></td><td>query</td><td>视频级或 Chunk 级语义搜索。</td></tr>
+        <tr><td><code>chat.ask</code></td><td>mutation / stream</td><td>基于知识库进行问答，返回来源。</td></tr>
+        <tr><td><code>graph.neighbors</code></td><td>query</td><td>获取某视频的一跳/二跳图谱数据。</td></tr>
+    </tbody>
+</table>
+
+<h2>8.2 前端状态设计</h2>
+
+<ul>
+    <li><strong>导入中心</strong>：展示批量导入任务、每个任务进度、失败原因和重试按钮。</li>
+    <li><strong>Wiki 列表</strong>：展示已完成和部分完成的视频卡片，支持分类、标签、作者筛选。</li>
+    <li><strong>视频详情</strong>：展示摘要、关键点、逐字稿、时间戳片段、相关视频。</li>
+    <li><strong>搜索页</strong>：支持关键词 + 语义混合搜索，并展示命中的具体片段。</li>
+    <li><strong>图谱页</strong>：默认局部加载，点击节点展开关系，不一次性拉全量图谱。</li>
+</ul>
+
+<h1 id="sec9">九、安全、可观测性与成本治理</h1>
+
+<h2>9.1 安全与权限</h2>
+
+<ul>
+    <li>所有业务表必须包含 <code>workspace_id</code> 或通过视频归属间接关联 workspace。</li>
+    <li>所有查询、向量检索、图谱查询必须强制带 workspace filter。</li>
+    <li>外部 API Key 存入服务端密钥管理，不暴露给前端。</li>
+    <li>支持用户删除视频及其派生产物：transcripts、chunks、embeddings、graph_edges。</li>
+    <li>对导入接口做频率限制和单用户并发任务限制，防止成本失控。</li>
+</ul>
+
+<h2>9.2 可观测性指标</h2>
+
+<table>
+    <caption data-label="表9-1">核心指标</caption>
+    <thead><tr><th>指标类型</th><th>指标</th><th>目标</th></tr></thead>
+    <tbody>
+        <tr><td>任务指标</td><td>导入成功率、平均耗时、失败分布、重试次数</td><td>成功率 &gt; 95%，失败原因可归类</td></tr>
+        <tr><td>模型指标</td><td>LLM 延迟、ASR 延迟、Embedding 延迟、单视频成本</td><td>可按 workspace 统计成本</td></tr>
+        <tr><td>检索指标</td><td>TopK 命中率、无结果率、用户点击率</td><td>持续优化召回质量</td></tr>
+        <tr><td>系统指标</td><td>队列积压、Worker 并发、错误率、P95/P99 响应时间</td><td>队列积压可告警</td></tr>
+    </tbody>
+</table>
+
+<h2>9.3 成本控制</h2>
+
+<ul>
+    <li>重复链接通过幂等键去重，避免重复解析、重复摘要和重复向量化。</li>
+    <li>摘要和 Embedding 使用 <code>content_hash</code> 缓存，内容未变不重跑。</li>
+    <li>长视频 ASR 采用分段处理，并设置最大时长和用户额度。</li>
+    <li>不同套餐限制可导入视频数、月度 ASR 时长、Embedding 调用量和图谱节点数。</li>
+</ul>
+
+<h1 id="sec10">十、开发里程碑与验收指标</h1>
+
+<table>
+    <caption data-label="表10-1">修订后开发阶段</caption>
+    <thead><tr><th>阶段</th><th>周期</th><th>核心目标</th><th>验收标准</th></tr></thead>
+    <tbody>
+        <tr><td>Phase 1：本地 MVP</td><td>Week 1-2</td><td>链接导入、元数据解析、Wiki CRUD、基础摘要</td><td>单用户可完成 20 条链接导入，失败可见。</td></tr>
+        <tr><td>Phase 2：任务化改造</td><td>Week 3-4</td><td>Job 表、Worker、状态机、重试、幂等</td><td>导入接口不阻塞，任务失败可重试。</td></tr>
+        <tr><td>Phase 3：内容增强</td><td>Week 5-6</td><td>ASR/手动字幕、Chunk 表、Chunk Embedding</td><td>问答可引用具体片段，支持时间戳。</td></tr>
+        <tr><td>Phase 4：混合检索</td><td>Week 7</td><td>BM25 + 向量 + 标签过滤 + Rerank</td><td>搜索结果能返回视频和命中片段。</td></tr>
+        <tr><td>Phase 5：图谱离线化</td><td>Week 8</td><td>TopK 边生成、局部图谱、聚类展示</td><td>1000 条视频内图谱页面流畅可用。</td></tr>
+        <tr><td>Phase 6：多用户与运营化</td><td>Week 9-10</td><td>Workspace、权限、限流、成本统计、删除能力</td><td>多用户数据隔离通过测试。</td></tr>
+    </tbody>
+</table>
+
+<h2>10.2 性能指标</h2>
+
+<table>
+    <caption data-label="表10-2">性能与可靠性目标</caption>
+    <thead><tr><th>链路</th><th>指标</th><th>目标</th></tr></thead>
+    <tbody>
+        <tr><td>创建导入任务</td><td>P99</td><td>&lt; 300ms</td></tr>
+        <tr><td>查询任务状态</td><td>P99</td><td>&lt; 200ms</td></tr>
+        <tr><td>语义搜索</td><td>P95</td><td>&lt; 1s，TopK=20</td></tr>
+        <tr><td>RAG 问答</td><td>首 token</td><td>&lt; 2s，不含上游模型异常</td></tr>
+        <tr><td>异步入库</td><td>成功率</td><td>&gt; 95%，失败可分类、可重试</td></tr>
+    </tbody>
+</table>
+
+<h1 id="sec11">十一、风险与应对策略</h1>
+
+<table>
+    <caption data-label="表11-1">技术风险与应对策略</caption>
+    <thead><tr><th>风险</th><th>概率</th><th>影响</th><th>应对策略</th></tr></thead>
+    <tbody>
+        <tr><td>抖音解析不稳定</td><td>高</td><td>入库失败</td><td>数据源分级；官方 OAuth 与手动链接并行；失败允许人工补充元数据。</td></tr>
+        <tr><td>没有逐字稿导致 RAG 质量弱</td><td>高</td><td>问答不准确</td><td>将 ASR/手动字幕作为 P0/P1 能力，明确摘要级和正文级能力差异。</td></tr>
+        <tr><td>LLM 输出不可控</td><td>中</td><td>摘要格式错误</td><td>JSON Schema 校验、失败重试、prompt_version、人工编辑保护。</td></tr>
+        <tr><td>向量库迁移成本</td><td>中</td><td>后期扩展困难</td><td>抽象 VectorStore，不在业务层写死数据库方言。</td></tr>
+        <tr><td>图谱性能瓶颈</td><td>中</td><td>前端卡顿、后端重算慢</td><td>增量 TopK、离线任务、局部图谱、Web Worker。</td></tr>
+        <tr><td>成本失控</td><td>中</td><td>模型费用过高</td><td>幂等去重、内容 hash 缓存、额度限制、按 workspace 计量。</td></tr>
+        <tr><td>多租户数据串读</td><td>低但严重</td><td>安全事故</td><td>workspace_id 强制过滤、集成测试覆盖、向量检索 metadata filter。</td></tr>
+    </tbody>
+</table>
+
+<h1 id="sec12">十二、结论</h1>
+
+<div class="success-box">
+    <div class="success-box-title">修订后结论</div>
+    <p>抖音Wiki可以按 MVP 方式快速落地，但后端架构必须从同步解析型接口升级为异步内容处理平台。推荐保留 React + TypeScript + Hono + tRPC + Drizzle 的开发效率优势，同时引入 Job Queue、Worker、VectorStore 抽象、Chunk 级数据模型和 Workspace 隔离。这样既能快速完成第一版，也能支撑后续 ASR、RAG 问答、知识图谱、多平台扩展和 SaaS 化。</p>
+</div>
+
+<p>最终推荐架构主线：</p>
+
+<pre><code>用户链接 / 官方授权数据
+  → import_job
+  → metadata parse
+  → content extraction
+  → ASR / manual transcript / OCR
+  → chunking
+  → summary / tags / entities
+  → embedding
+  → vector index
+  → graph edges
+  → semantic search / RAG chat / knowledge graph</code></pre>
+
+</body>
+</html>
