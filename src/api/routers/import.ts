@@ -2,12 +2,13 @@ import { z } from 'zod';
 import { router, authedProcedure, throwTrpcError } from '../trpc';
 import { ImportService } from '../../services/import-service';
 import { MockDouyinConnector } from '../../infrastructure/douyin-connector';
+import { db } from '../../db';
 import { queue } from '../../workers/queue';
 import { JobStatus } from '../../domain/types';
 
 // 依赖注入（Phase 1 简化版）
 const connector = new MockDouyinConnector();
-const importService = new ImportService(connector);
+const importService = new ImportService(connector, db);
 
 const jobStatusEnum = z.enum([
   'created',

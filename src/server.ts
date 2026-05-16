@@ -5,16 +5,29 @@ import { serve } from '@hono/node-server';
 import { router } from './api/trpc';
 import { importRouter } from './api/routers/import';
 import { videosRouter } from './api/routers/videos';
+import { searchRouter } from './api/routers/search';
 import { MockDouyinConnector } from './infrastructure/douyin-connector';
 import { MockLLMClient } from './infrastructure/llm-client';
+import { MockASRClient } from './infrastructure/asr-client';
+import { MockEmbeddingClient } from './infrastructure/embedding-client';
+import { SQLiteVectorStore } from './infrastructure/vector-store';
 import { JobQueue } from './workers/queue';
 import { registerParseWorker } from './workers/parse-worker';
+import { registerASRWorker } from './workers/asr-worker';
+import { registerChunkWorker } from './workers/chunk-worker';
+import { registerSummaryWorker } from './workers/summary-worker';
+import { registerEmbedWorker } from './workers/embed-worker';
+import { registerIndexWorker } from './workers/index-worker';
 import { ImportService } from './services/import-service';
+import { db } from './db';
 
-// 注册 Worker
+// 初始化依赖
 const connector = new MockDouyinConnector();
 const llm = new MockLLMClient();
-const importService = new ImportService(connector);
+const asr = new MockASRClient();
+const embeddingClient = new MockEmbeddingClient();
+const vectorStore = new SQLiteVectorStore();
+const importService = new ImportService(connector, db);
 
 const queue = new JobQueue({
   maxConcurrency: 3,
@@ -23,12 +36,19 @@ const queue = new JobQueue({
   jobTimeoutMs: 30000,
 });
 
+// 注册所有 Worker
 registerParseWorker(queue, connector, importService);
+registerASRWorker(queue, asr, importService);
+registerChunkWorker(queue, importService);
+registerSummaryWorker(queue, llm, importService);
+registerEmbedWorker(queue, embeddingClient, importService);
+registerIndexWorker(queue, vectorStore, importService);
 
 // 合并 tRPC Router
 export const appRouter = router({
   import: importRouter,
   videos: videosRouter,
+  search: searchRouter,
 });
 
 export type AppRouter = typeof appRouter;
@@ -62,5 +82,6 @@ serve({
 });
 
 console.log(`Server running at http://localhost:${port}`);
+console.log('Registered workers: parse_metadata, transcribe, chunk, summarize, embed, index');
 
 export default app;
