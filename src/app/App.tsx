@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import ImportPage from './pages/ImportPage';
 import WikiListPage from './pages/WikiListPage';
+import GraphPage from './pages/GraphPage';
 
-type Page = 'import' | 'list';
+type Page = 'import' | 'list' | 'graph';
 
 export default function App() {
   const [page, setPage] = useState<Page>('import');
@@ -13,11 +14,15 @@ export default function App() {
         <button onClick={() => setPage('import')} style={{ marginRight: 10 }}>
           导入视频
         </button>
-        <button onClick={() => setPage('list')}>Wiki 列表</button>
+        <button onClick={() => setPage('list')} style={{ marginRight: 10 }}>
+          Wiki 列表
+        </button>
+        <button onClick={() => setPage('graph')}>知识图谱</button>
       </nav>
 
       {page === 'import' && <ImportPage />}
       {page === 'list' && <WikiListPage />}
+      {page === 'graph' && <GraphPage />}
     </div>
   );
 }
