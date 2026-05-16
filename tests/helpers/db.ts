@@ -91,6 +91,68 @@ export async function createTestDb(): Promise<DbClient> {
     ON ingestion_jobs(video_id)
   `);
 
+  // transcripts 表
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS transcripts (
+      id TEXT PRIMARY KEY,
+      video_id TEXT NOT NULL REFERENCES videos(id),
+      workspace_id TEXT NOT NULL DEFAULT 'default',
+      source TEXT NOT NULL,
+      model_name TEXT,
+      language TEXT DEFAULT 'zh',
+      segments TEXT,
+      raw_text TEXT,
+      created_at INTEGER DEFAULT (unixepoch()),
+      updated_at INTEGER DEFAULT (unixepoch())
+    )
+  `);
+
+  await client.execute(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_transcripts_video_source
+    ON transcripts(video_id, source)
+  `);
+
+  // chunks 表
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS chunks (
+      id TEXT PRIMARY KEY,
+      video_id TEXT NOT NULL REFERENCES videos(id),
+      workspace_id TEXT NOT NULL DEFAULT 'default',
+      content_type TEXT NOT NULL,
+      chunk_index INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      content_hash TEXT NOT NULL,
+      start_time_ms INTEGER,
+      end_time_ms INTEGER,
+      created_at INTEGER DEFAULT (unixepoch())
+    )
+  `);
+
+  await client.execute(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_chunks_video_type_idx
+    ON chunks(video_id, content_type, chunk_index)
+  `);
+
+  // embeddings 表
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS embeddings (
+      id TEXT PRIMARY KEY,
+      chunk_id TEXT NOT NULL REFERENCES chunks(id),
+      video_id TEXT NOT NULL REFERENCES videos(id),
+      workspace_id TEXT NOT NULL DEFAULT 'default',
+      model_name TEXT NOT NULL,
+      dimension INTEGER NOT NULL,
+      embedding TEXT NOT NULL,
+      content_hash TEXT NOT NULL,
+      created_at INTEGER DEFAULT (unixepoch())
+    )
+  `);
+
+  await client.execute(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_embeddings_chunk_model
+    ON embeddings(chunk_id, model_name)
+  `);
+
   // 将临时目录路径附加到 testDb 上，便于后续清理
   (testDb as any).$testDbPath = dbPath;
   (testDb as any).$testDbDir = tmpDir;
@@ -103,6 +165,9 @@ export async function createTestDb(): Promise<DbClient> {
  */
 export async function cleanTestDb(testDb: DbClient): Promise<void> {
   const client = (testDb as any).$client;
+  await client.execute(`DELETE FROM embeddings`);
+  await client.execute(`DELETE FROM chunks`);
+  await client.execute(`DELETE FROM transcripts`);
   await client.execute(`DELETE FROM ingestion_jobs`);
   await client.execute(`DELETE FROM videos`);
 }

@@ -15,22 +15,32 @@ import { nanoid } from 'nanoid';
 function mapRowToImportJob(row: Record<string, unknown>): ImportJob {
   return {
     id: row.id as string,
-    workspaceId: row.workspace_id as string,
-    shareUrl: row.share_url as string,
-    normalizedUrlHash: row.normalized_url_hash as string,
+    workspaceId: (row.workspaceId ?? row.workspace_id) as string,
+    shareUrl: (row.shareUrl ?? row.share_url) as string,
+    normalizedUrlHash: (row.normalizedUrlHash ?? row.normalized_url_hash) as string,
     status: row.status as ImportJob['status'],
     step: (row.step as string | null) ?? undefined,
     progress: (row.progress as number | null) ?? 0,
-    retryCount: (row.retry_count as number | null) ?? 0,
-    maxRetries: (row.max_retries as number | null) ?? 3,
-    errorCode: (row.error_code as string | null) ?? undefined,
-    errorMessage: (row.error_message as string | null) ?? undefined,
-    videoId: (row.video_id as string | null) ?? undefined,
-    nextRetryAt: row.next_retry_at ? new Date(row.next_retry_at as string | number) : undefined,
-    lastErrorAt: row.last_error_at ? new Date(row.last_error_at as string | number) : undefined,
-    attemptedAt: row.attempted_at ? new Date(row.attempted_at as string | number) : undefined,
-    createdAt: row.created_at ? new Date(row.created_at as string | number) : new Date(),
-    updatedAt: row.updated_at ? new Date(row.updated_at as string | number) : new Date(),
+    retryCount: (row.retryCount ?? row.retry_count) as number ?? 0,
+    maxRetries: (row.maxRetries ?? row.max_retries) as number ?? 3,
+    errorCode: (row.errorCode ?? row.error_code) as string | null ?? undefined,
+    errorMessage: (row.errorMessage ?? row.error_message) as string | null ?? undefined,
+    videoId: (row.videoId ?? row.video_id) as string | null ?? undefined,
+    nextRetryAt: (row.nextRetryAt ?? row.next_retry_at)
+      ? new Date((row.nextRetryAt ?? row.next_retry_at) as string | number)
+      : undefined,
+    lastErrorAt: (row.lastErrorAt ?? row.last_error_at)
+      ? new Date((row.lastErrorAt ?? row.last_error_at) as string | number)
+      : undefined,
+    attemptedAt: (row.attemptedAt ?? row.attempted_at)
+      ? new Date((row.attemptedAt ?? row.attempted_at) as string | number)
+      : undefined,
+    createdAt: (row.createdAt ?? row.created_at)
+      ? new Date((row.createdAt ?? row.created_at) as string | number)
+      : new Date(),
+    updatedAt: (row.updatedAt ?? row.updated_at)
+      ? new Date((row.updatedAt ?? row.updated_at) as string | number)
+      : new Date(),
   };
 }
 

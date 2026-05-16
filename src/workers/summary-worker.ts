@@ -1,15 +1,15 @@
 import { eq } from 'drizzle-orm';
-import { db } from '../db';
+import { db, type DbClient } from '../db';
 import { videos } from '../db/schema';
 import { LLMClient } from '../infrastructure/llm-client';
-import { QueueJob, JobResult } from './queue';
+import { QueueJob, JobResult, JobQueue } from './queue';
 import { ImportService } from '../services/import-service';
-import { queue } from './queue';
 
 export function registerSummaryWorker(
-  queueInstance: typeof queue,
+  queueInstance: JobQueue,
   llm: LLMClient,
-  importService: ImportService
+  importService: ImportService,
+  dbClient: DbClient = db
 ) {
   queueInstance.register('summarize', async (job: QueueJob): Promise<JobResult> => {
     const { jobId, videoId, workspaceId } = job.payload;
@@ -21,7 +21,7 @@ export function registerSummaryWorker(
       });
 
       // 获取视频元数据
-      const videoRows = await db
+      const videoRows = await dbClient
         .select()
         .from(videos)
         .where(eq(videos.id, videoId))
@@ -37,7 +37,7 @@ export function registerSummaryWorker(
       const aiSummary = await llm.generateSummary(summaryText);
       const aiTags = await llm.generateTags(summaryText);
 
-      await db
+      await dbClient
         .update(videos)
         .set({
           aiSummary,
@@ -46,7 +46,7 @@ export function registerSummaryWorker(
         .where(eq(videos.id, videoId));
 
       // 入队 embed 任务
-      queue.enqueue({
+      queueInstance.enqueue({
         id: `${jobId}-embed`,
         type: 'embed',
         payload: { jobId, videoId, shareUrl: job.payload.shareUrl, workspaceId },

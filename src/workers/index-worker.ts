@@ -1,15 +1,16 @@
 import { eq } from 'drizzle-orm';
-import { db } from '../db';
+import { db, type DbClient } from '../db';
 import { videos } from '../db/schema';
 import { VectorStore } from '../infrastructure/vector-store';
 import { VectorChunk } from '../domain/types';
-import { QueueJob, JobResult, queue } from './queue';
+import { QueueJob, JobResult, JobQueue } from './queue';
 import { ImportService } from '../services/import-service';
 
 export function registerIndexWorker(
-  queueInstance: typeof queue,
+  queueInstance: JobQueue,
   vectorStore: VectorStore,
-  importService: ImportService
+  importService: ImportService,
+  dbClient: DbClient = db
 ) {
   queueInstance.register('index', async (job: QueueJob): Promise<JobResult> => {
     const { jobId, videoId, workspaceId } = job.payload;
@@ -27,7 +28,7 @@ export function registerIndexWorker(
       }
 
       // 更新视频状态为 completed
-      await db
+      await dbClient
         .update(videos)
         .set({ status: 'completed' })
         .where(eq(videos.id, videoId));

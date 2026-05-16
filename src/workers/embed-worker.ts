@@ -1,15 +1,15 @@
 import { eq } from 'drizzle-orm';
-import { db } from '../db';
+import { db, type DbClient } from '../db';
 import { chunks } from '../db/schema';
 import { EmbeddingClient } from '../infrastructure/embedding-client';
-import { QueueJob, JobResult } from './queue';
+import { QueueJob, JobResult, JobQueue } from './queue';
 import { ImportService } from '../services/import-service';
-import { queue } from './queue';
 
 export function registerEmbedWorker(
-  queueInstance: typeof queue,
+  queueInstance: JobQueue,
   embeddingClient: EmbeddingClient,
-  importService: ImportService
+  importService: ImportService,
+  dbClient: DbClient = db
 ) {
   queueInstance.register('embed', async (job: QueueJob): Promise<JobResult> => {
     const { jobId, videoId, workspaceId } = job.payload;
@@ -21,14 +21,14 @@ export function registerEmbedWorker(
       });
 
       // 读取该视频的所有 chunks
-      const chunkRows = await db
+      const chunkRows = await dbClient
         .select()
         .from(chunks)
         .where(eq(chunks.videoId, videoId));
 
       if (chunkRows.length === 0) {
         // 无 chunk，跳过 embedding，直接入队 index
-        queue.enqueue({
+        queueInstance.enqueue({
           id: `${jobId}-index`,
           type: 'index',
           payload: { jobId, videoId, shareUrl: job.payload.shareUrl, workspaceId, skipEmbedding: true },
@@ -56,7 +56,7 @@ export function registerEmbedWorker(
       }));
 
       // 入队 index 任务，携带 embedding 数据
-      queue.enqueue({
+      queueInstance.enqueue({
         id: `${jobId}-index`,
         type: 'index',
         payload: {

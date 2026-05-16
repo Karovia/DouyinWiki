@@ -24,6 +24,9 @@ const TERMINAL_STATES: JobStatus[] = [
 export function canTransition(from: JobStatus, to: JobStatus): boolean {
   if (TERMINAL_STATES.includes(from)) return false;
 
+  // 允许同状态转换（幂等，worker 重试时不需要特殊处理）
+  if (from === to) return true;
+
   if (to === 'failed_retryable') return !TERMINAL_STATES.includes(from);
   if (to === 'failed_terminal') return !TERMINAL_STATES.includes(from);
   if (to === 'cancelled') return !TERMINAL_STATES.includes(from);
@@ -35,6 +38,9 @@ export function canTransition(from: JobStatus, to: JobStatus): boolean {
   if (fromIndex === -1 || toIndex === -1) return false;
 
   // 正向流转只能按顺序，禁止跳步
+  // 特例：indexing 可直接到 completed（graph_updating 尚未实现时）
+  if (from === 'indexing' && to === 'completed') return true;
+
   return toIndex === fromIndex + 1;
 }
 

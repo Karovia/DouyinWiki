@@ -1,5 +1,5 @@
 import { eq, and, inArray } from 'drizzle-orm';
-import { db } from '../db';
+import { db, type DbClient } from '../db';
 import { embeddings, chunks as chunksTable } from '../db/schema';
 import { VectorChunk, SearchHit, SearchFilter } from '../domain/types';
 import { VEC_INSERT_FAILED } from '../domain/errors';
@@ -28,10 +28,12 @@ function cosineSimilarity(a: number[], b: number[]): number {
 }
 
 export class SQLiteVectorStore implements VectorStore {
+  constructor(private dbClient: DbClient = db) {}
+
   async upsert(chunks: VectorChunk[]): Promise<void> {
     try {
       for (const chunk of chunks) {
-        await db
+        await this.dbClient
           .insert(embeddings)
           .values({
             id: chunk.id,
@@ -67,7 +69,7 @@ export class SQLiteVectorStore implements VectorStore {
     const { workspaceId, queryEmbedding, topK, filters } = params;
 
     // 获取该 workspace 的所有 embeddings
-    const rows = await db
+    const rows = await this.dbClient
       .select({
         id: embeddings.id,
         chunkId: embeddings.chunkId,
@@ -83,7 +85,7 @@ export class SQLiteVectorStore implements VectorStore {
     // 获取对应的 chunks 内容
     const chunkIds = rows.map((r) => r.chunkId);
     const chunkRows = chunkIds.length > 0
-      ? await db
+      ? await this.dbClient
           .select()
           .from(chunksTable)
           .where(
@@ -127,9 +129,9 @@ export class SQLiteVectorStore implements VectorStore {
 
   async deleteByOwner(ownerType: string, ownerId: string): Promise<void> {
     if (ownerType === 'video') {
-      await db.delete(embeddings).where(eq(embeddings.videoId, ownerId));
+      await this.dbClient.delete(embeddings).where(eq(embeddings.videoId, ownerId));
     } else if (ownerType === 'chunk') {
-      await db.delete(embeddings).where(eq(embeddings.chunkId, ownerId));
+      await this.dbClient.delete(embeddings).where(eq(embeddings.chunkId, ownerId));
     }
   }
 }

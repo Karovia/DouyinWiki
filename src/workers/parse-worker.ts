@@ -1,16 +1,16 @@
 import { eq } from 'drizzle-orm';
-import { db } from '../db';
+import { db, type DbClient } from '../db';
 import { videos } from '../db/schema';
 import { DouyinConnector } from '../infrastructure/douyin-connector';
 import { JobQueue, JobResult } from './queue';
 import { ImportService } from '../services/import-service';
 import { AppError } from '../domain/errors';
-import { queue } from './queue';
 
 export function registerParseWorker(
   queueInstance: JobQueue,
   connector: DouyinConnector,
-  importService: ImportService
+  importService: ImportService,
+  dbClient: DbClient = db
 ) {
   queueInstance.register('parse_metadata', async (job): Promise<JobResult> => {
     const { jobId, videoId, shareUrl, workspaceId } = job.payload;
@@ -29,7 +29,7 @@ export function registerParseWorker(
       const metadata = await connector.fetchMetadata(parsed);
 
       // 3. 更新视频记录
-      await db
+      await dbClient
         .update(videos)
         .set({
           platformVideoId: metadata.platformVideoId,
@@ -51,7 +51,7 @@ export function registerParseWorker(
         step: 'fetching_content',
       });
 
-      queue.enqueue({
+      queueInstance.enqueue({
         id: `${jobId}-transcribe`,
         type: 'transcribe',
         payload: {
@@ -86,7 +86,7 @@ export function registerParseWorker(
             errorMessage: retryable ? `${errorMessage} (max retries exceeded)` : errorMessage,
           });
 
-          await db
+          await dbClient
             .update(videos)
             .set({
               status: 'failed',

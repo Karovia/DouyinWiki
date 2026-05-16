@@ -1,17 +1,17 @@
 import { eq } from 'drizzle-orm';
-import { db } from '../db';
+import { db, type DbClient } from '../db';
 import { transcripts } from '../db/schema';
 import { ASRClient } from '../infrastructure/asr-client';
-import { QueueJob, JobResult } from './queue';
+import { QueueJob, JobResult, JobQueue } from './queue';
 import { ImportService } from '../services/import-service';
 import { AppError } from '../domain/errors';
 import { nanoid } from 'nanoid';
-import { queue } from './queue';
 
 export function registerASRWorker(
-  queueInstance: typeof queue,
+  queueInstance: JobQueue,
   asr: ASRClient,
-  importService: ImportService
+  importService: ImportService,
+  dbClient: DbClient = db
 ) {
   queueInstance.register('transcribe', async (job: QueueJob): Promise<JobResult> => {
     const { jobId, videoId, shareUrl, workspaceId } = job.payload;
@@ -25,7 +25,7 @@ export function registerASRWorker(
       const result = await asr.transcribe(shareUrl, { language: 'zh' });
 
       const transcriptId = nanoid();
-      await db.insert(transcripts).values({
+      await dbClient.insert(transcripts).values({
         id: transcriptId,
         videoId,
         workspaceId,
@@ -40,7 +40,7 @@ export function registerASRWorker(
         step: 'chunking',
       });
 
-      queue.enqueue({
+      queueInstance.enqueue({
         id: `${jobId}-chunk`,
         type: 'chunk',
         payload: { jobId, videoId, shareUrl, workspaceId, transcriptId },

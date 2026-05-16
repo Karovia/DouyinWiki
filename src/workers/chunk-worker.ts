@@ -1,15 +1,15 @@
 import { eq } from 'drizzle-orm';
-import { db } from '../db';
+import { db, type DbClient } from '../db';
 import { transcripts, chunks } from '../db/schema';
-import { QueueJob, JobResult } from './queue';
+import { QueueJob, JobResult, JobQueue } from './queue';
 import { ImportService } from '../services/import-service';
 import { TranscriptSegment } from '../domain/types';
 import { nanoid } from 'nanoid';
-import { queue } from './queue';
 
 export function registerChunkWorker(
-  queueInstance: typeof queue,
-  importService: ImportService
+  queueInstance: JobQueue,
+  importService: ImportService,
+  dbClient: DbClient = db
 ) {
   queueInstance.register('chunk', async (job: QueueJob): Promise<JobResult> => {
     const { jobId, videoId, workspaceId } = job.payload;
@@ -21,7 +21,7 @@ export function registerChunkWorker(
       });
 
       // 读取 transcript
-      const transcriptRows = await db
+      const transcriptRows = await dbClient
         .select()
         .from(transcripts)
         .where(eq(transcripts.videoId, videoId))
@@ -41,7 +41,7 @@ export function registerChunkWorker(
       if (chunkList.length > 0) {
         for (let i = 0; i < chunkList.length; i++) {
           const item = chunkList[i];
-          await db.insert(chunks).values({
+          await dbClient.insert(chunks).values({
             id: nanoid(),
             videoId,
             workspaceId,
@@ -56,7 +56,7 @@ export function registerChunkWorker(
       }
 
       // 入队 summarize 任务
-      queue.enqueue({
+      queueInstance.enqueue({
         id: `${jobId}-summarize`,
         type: 'summarize',
         payload: { jobId, videoId, shareUrl: job.payload.shareUrl, workspaceId },
