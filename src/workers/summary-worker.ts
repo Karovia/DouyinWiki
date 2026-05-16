@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { db, type DbClient } from '../db';
-import { videos } from '../db/schema';
+import { videos, transcripts } from '../db/schema';
 import { LLMClient } from '../infrastructure/llm-client';
 import { QueueJob, JobResult, JobQueue } from './queue';
 import { ImportService } from '../services/import-service';
@@ -32,16 +32,26 @@ export function registerSummaryWorker(
         throw new Error('Video not found');
       }
 
-      // 生成摘要
-      const summaryText = `${video.title || ''}\n${video.description || ''}`;
-      const aiSummary = await llm.generateSummary(summaryText);
-      const aiTags = await llm.generateTags(summaryText);
+      // 获取转写文本
+      const transcriptRows = await dbClient
+        .select({ rawText: transcripts.rawText })
+        .from(transcripts)
+        .where(eq(transcripts.videoId, videoId))
+        .limit(1);
+
+      const transcript = transcriptRows[0]?.rawText || '';
+
+      // 使用 analyzeContent 一次性生成摘要、标签和实体
+      const analysis = await llm.analyzeContent({
+        title: video.title || '',
+        transcript,
+      });
 
       await dbClient
         .update(videos)
         .set({
-          aiSummary,
-          aiTags: JSON.stringify(aiTags),
+          aiSummary: analysis.summary,
+          aiTags: JSON.stringify(analysis.tags),
         })
         .where(eq(videos.id, videoId));
 

@@ -40,6 +40,9 @@ export async function createTestDb(): Promise<DbClient> {
       status TEXT NOT NULL DEFAULT 'pending',
       error_code TEXT,
       error_message TEXT,
+      graph_status TEXT NOT NULL DEFAULT 'pending',
+      graph_error TEXT,
+      graph_built_at INTEGER,
       created_at INTEGER DEFAULT (unixepoch()),
       updated_at INTEGER DEFAULT (unixepoch())
     )
@@ -153,6 +156,84 @@ export async function createTestDb(): Promise<DbClient> {
     ON embeddings(chunk_id, model_name)
   `);
 
+  // graph_nodes 表
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS graph_nodes (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      node_type TEXT NOT NULL,
+      business_id TEXT NOT NULL,
+      canonical_key TEXT,
+      label TEXT NOT NULL,
+      properties TEXT,
+      created_at INTEGER DEFAULT (unixepoch()),
+      updated_at INTEGER DEFAULT (unixepoch())
+    )
+  `);
+
+  await client.execute(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_graph_nodes_unique
+    ON graph_nodes(workspace_id, node_type, business_id)
+  `);
+
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_graph_nodes_workspace_type
+    ON graph_nodes(workspace_id, node_type)
+  `);
+
+  // graph_edges 表
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS graph_edges (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      source_node_id TEXT NOT NULL,
+      target_node_id TEXT NOT NULL,
+      relation_type TEXT NOT NULL,
+      weight REAL NOT NULL DEFAULT 0.5,
+      computed_by TEXT NOT NULL,
+      evidence TEXT,
+      created_at INTEGER DEFAULT (unixepoch()),
+      updated_at INTEGER DEFAULT (unixepoch())
+    )
+  `);
+
+  await client.execute(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_graph_edges_unique
+    ON graph_edges(workspace_id, source_node_id, target_node_id, relation_type)
+  `);
+
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_edges_source_type_weight
+    ON graph_edges(workspace_id, source_node_id, relation_type, weight)
+  `);
+
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_edges_target_type_weight
+    ON graph_edges(workspace_id, target_node_id, relation_type, weight)
+  `);
+
+  // entity_aliases 表
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS entity_aliases (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      alias TEXT NOT NULL,
+      canonical_node_id TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'auto_detected',
+      created_at INTEGER DEFAULT (unixepoch())
+    )
+  `);
+
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_entity_aliases_lookup
+    ON entity_aliases(workspace_id, alias)
+  `);
+
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_entity_aliases_canonical
+    ON entity_aliases(workspace_id, canonical_node_id)
+  `);
+
   // 将临时目录路径附加到 testDb 上，便于后续清理
   (testDb as any).$testDbPath = dbPath;
   (testDb as any).$testDbDir = tmpDir;
@@ -165,6 +246,9 @@ export async function createTestDb(): Promise<DbClient> {
  */
 export async function cleanTestDb(testDb: DbClient): Promise<void> {
   const client = (testDb as any).$client;
+  await client.execute(`DELETE FROM graph_edges`);
+  await client.execute(`DELETE FROM entity_aliases`);
+  await client.execute(`DELETE FROM graph_nodes`);
   await client.execute(`DELETE FROM embeddings`);
   await client.execute(`DELETE FROM chunks`);
   await client.execute(`DELETE FROM transcripts`);
