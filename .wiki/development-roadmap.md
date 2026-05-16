@@ -123,6 +123,15 @@ cancelled
 |------|------|----------|----------|
 | Phase 1：本地 MVP | Week 1-2 | 链接导入、元数据解析、Wiki CRUD、基础摘要 | 单用户可完成 20 条链接导入，失败可见 |
 | Phase 2：任务化改造 | Week 3-4 | Job 表、Worker、状态机、重试、幂等 | 导入接口不阻塞，任务失败可重试 |
+
+### Phase 2 总体进度
+
+| Task | 状态 | 完成时间 |
+|------|------|----------|
+| Task 1: 数据库 Schema 增强 - 幂等索引与任务字段 | ✅ | 2026-05-16 |
+| Task 2: 状态机增强与任务生命周期管理 API | ✅ | 2026-05-16 |
+| Task 3: 集成测试 - 跨 workspace 隔离与 E2E | ⬜ | - |
+| Task 4: Worker 系统增强 - 重试、超时与并发控制 | ⬜ | - |
 | Phase 3：内容增强 | Week 5-6 | ASR/手动字幕、Chunk 表、Chunk Embedding | 问答可引用具体片段，支持时间戳 |
 | Phase 4：混合检索 | Week 7 | BM25 + 向量 + 标签过滤 + Rerank | 搜索结果能返回视频和命中片段 |
 | Phase 5：图谱离线化 | Week 8 | TopK 边生成、局部图谱、聚类展示 | 1000 条视频内图谱页面流畅可用 |
@@ -1643,3 +1652,47 @@ git commit -m "feat(phase1): complete MVP with E2E import flow"
   → graph edges
   → semantic search / RAG chat / knowledge graph
 ```
+
+---
+
+## Phase 2 详细实施计划
+
+### Task 2：状态机增强与任务生命周期管理 API
+
+**Files:**
+- Modified: `src/domain/state-machine.ts`
+- Modified: `src/services/import-service.ts`
+- Modified: `src/api/routers/import.ts`
+- Modified: `tests/unit/state-machine.test.ts`
+
+- [x] **Step 1：增强状态机模块**
+  - 添加 `canRetry(status)` - 判断状态是否可以从 failed_retryable 重试
+  - 添加 `getRetryState(step)` - 返回重试后应该进入的状态（使用 step 字段推断）
+  - 添加 `canCancel(status)` - 判断状态是否可以被取消
+  - 添加 `validateTransition(from, to)` - 验证状态转换，非法时抛出 AppError
+
+- [x] **Step 2：扩展导入服务**
+  - 添加 `listJobs` - 列出任务（支持状态过滤、分页）
+  - 添加 `cancelJob` - 取消任务（验证状态可取消性）
+  - 添加 `retryJob` - 重试任务（从 failed_retryable 恢复）
+  - 添加 `updateJobStatus` - 更新任务状态（供 Worker 调用，验证转换合法性）
+  - 所有方法强制带 workspaceId filter
+
+- [x] **Step 3：扩展 tRPC 路由**
+  - 添加 `import.list` - 列出任务端点
+  - 添加 `import.cancel` - 取消任务端点
+  - 添加 `import.retry` - 重试任务端点
+
+- [x] **Step 4：添加单元测试**
+  - `canRetry` 测试（failed_retryable 可重试，其他状态不可）
+  - `canCancel` 测试（非终止状态可取消，终止状态不可）
+  - `validateTransition` 测试（非法转换抛出 AppError）
+
+- [x] **Step 5：TypeScript 编译检查**
+  - 运行 `npx tsc --noEmit` - 通过
+
+- [x] **Step 6：运行单元测试**
+  - 运行 `npx vitest run` - 5 个测试全部通过
+
+- [x] **Step 7：提交代码**
+  - Commit: `feat(phase2): 增强状态机与任务生命周期管理 API`
