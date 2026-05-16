@@ -6,7 +6,27 @@
       "Bash(bash .claude/hooks/task-review.sh)",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(npm init *)",
+      "Bash(npm install *)",
+      "Bash(npx drizzle-kit *)",
+      "Bash(npx vitest *)",
+      "Bash(npx tsc *)",
+      "Bash(timeout 10s npx tsx src/server.ts)",
+      "Bash(curl -s http://localhost:3000/health)",
+      "Bash(curl -s http://localhost:3000/)",
+      "Bash(npx tsx *)",
+      "Bash(echo \"PID=$!\")",
+      "Bash(cat server.log)",
+      "Bash(curl *)",
+      "Bash(npm view *)",
+      "Bash(awk '{print $1}')",
+      "Bash(netstat -ano)",
+      "Bash(kill 8888)",
+      "Bash(taskkill /F /PID 8888)",
+      "Bash(kill -9 8888)",
+      "Bash(cmd *)",
+      "Bash(powershell *)"
     ]
   },
   "hooks": {
