@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const videos = sqliteTable('videos', {
   id: text('id').primaryKey(),
@@ -40,6 +40,11 @@ export const ingestionJobs = sqliteTable('ingestion_jobs', {
   errorMessage: text('error_message'),
   startedAt: integer('started_at', { mode: 'timestamp' }),
   finishedAt: integer('finished_at', { mode: 'timestamp' }),
+  nextRetryAt: integer('next_retry_at', { mode: 'timestamp' }),
+  lastErrorAt: integer('last_error_at', { mode: 'timestamp' }),
+  attemptedAt: integer('attempted_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
-});
+}, (table) => [
+  uniqueIndex('idx_jobs_workspace_url').on(table.workspaceId, table.normalizedUrlHash),
+]);
