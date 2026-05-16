@@ -167,14 +167,14 @@ export class HybridSearchService {
       const aiTagConditions = tagFilter.aiTags.map(tag =>
         like(videos.aiTags, `%"${tag}"%`)
       );
-      conditions.push(or(...aiTagConditions));
+      conditions.push(or(...aiTagConditions)!);
     }
 
     if (tagFilter.tags && tagFilter.tags.length > 0) {
       const tagConditions = tagFilter.tags.map(tag =>
         like(videos.tags, `%"${tag}"%`)
       );
-      conditions.push(or(...tagConditions));
+      conditions.push(or(...tagConditions)!);
     }
 
     const rows = await this.dbClient
