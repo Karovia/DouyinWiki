@@ -3,6 +3,7 @@ import { AppError } from '../domain/errors';
 
 export interface TrpcContext {
   workspaceId: string;
+  userId: string;
 }
 
 function mapStatusToTrpcCode(statusCode: number): TRPCError['code'] {
@@ -55,7 +56,8 @@ export const authedProcedure = t.procedure.use(
     return next({
       ctx: {
         ...ctx,
-        workspaceId: 'default',
+        workspaceId: ctx.workspaceId || 'default',
+        userId: ctx.userId || 'anonymous',
       },
     });
   })

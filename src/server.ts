@@ -7,6 +7,7 @@ import { importRouter } from './api/routers/import';
 import { videosRouter } from './api/routers/videos';
 import { searchRouter } from './api/routers/search';
 import { graphRouter } from './api/routers/graph';
+import { workspaceRouter } from './api/routers/workspace';
 import { MockDouyinConnector } from './infrastructure/douyin-connector';
 import { MockLLMClient } from './infrastructure/llm-client';
 import { MockASRClient } from './infrastructure/asr-client';
@@ -56,6 +57,7 @@ export const appRouter = router({
   videos: videosRouter,
   search: searchRouter,
   graph: graphRouter,
+  workspace: workspaceRouter,
 });
 
 export type AppRouter = typeof appRouter;
@@ -71,7 +73,7 @@ app.use(
   '/trpc/*',
   trpcServer({
     router: appRouter,
-    createContext: () => ({ workspaceId: 'default' }),
+    createContext: () => ({ workspaceId: 'default', userId: 'anonymous' }),
   })
 );
 

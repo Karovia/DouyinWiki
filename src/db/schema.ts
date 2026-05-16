@@ -147,3 +147,25 @@ export const entityAliases = sqliteTable('entity_aliases', {
   index('idx_entity_aliases_lookup').on(table.workspaceId, table.alias),
   index('idx_entity_aliases_canonical').on(table.workspaceId, table.canonicalNodeId),
 ]);
+
+export const workspaces = sqliteTable('workspaces', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull().unique(),
+  ownerId: text('owner_id').notNull(),
+  plan: text('plan').notNull().default('free'),
+  settings: text('settings'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
+
+export const workspaceMembers = sqliteTable('workspace_members', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id),
+  userId: text('user_id').notNull(),
+  role: text('role').notNull().default('member'),
+  invitedBy: text('invited_by'),
+  joinedAt: integer('joined_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+}, (table) => [
+  uniqueIndex('idx_workspace_members_unique').on(table.workspaceId, table.userId),
+]);
