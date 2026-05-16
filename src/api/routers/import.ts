@@ -34,9 +34,9 @@ export const importRouter = router({
 
   status: authedProcedure
     .input(z.object({ jobId: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       try {
-        const job = await importService.getJobStatus(input.jobId);
+        const job = await importService.getJobStatus(input.jobId, ctx.workspaceId);
         if (!job) {
           throw new Error('Job not found');
         }

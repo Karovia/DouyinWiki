@@ -95,11 +95,11 @@ export class ImportService {
     }
   }
 
-  async getJobStatus(jobId: string): Promise<ImportJob | null> {
+  async getJobStatus(jobId: string, workspaceId: string): Promise<ImportJob | null> {
     const result = await db
       .select()
       .from(ingestionJobs)
-      .where(eq(ingestionJobs.id, jobId))
+      .where(and(eq(ingestionJobs.id, jobId), eq(ingestionJobs.workspaceId, workspaceId)))
       .limit(1);
 
     return result[0] ? mapRowToImportJob(result[0] as Record<string, unknown>) : null;
