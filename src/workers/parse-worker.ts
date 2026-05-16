@@ -14,8 +14,7 @@ export function registerParseWorker(
   importService: ImportService
 ) {
   queue.register('parse_metadata', async (job): Promise<JobResult> => {
-    const { jobId, videoId, shareUrl } = job.payload;
-    const workspaceId = 'default'; // Worker 内部使用默认 workspace，实际生产环境应从 job payload 传递
+    const { jobId, videoId, shareUrl, workspaceId } = job.payload;
 
     // 从 payload 中获取重试次数（由队列注入）
     const retryCount = (job.payload as unknown as Record<string, number>)._retryCount ?? 0;

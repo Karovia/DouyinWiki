@@ -5,6 +5,7 @@ export interface QueueJob {
     jobId: string;
     videoId: string;
     shareUrl: string;
+    workspaceId: string;
   };
 }
 
@@ -107,6 +108,9 @@ export class JobQueue {
       return;
     }
 
+    // 从 payload 中读取当前重试次数
+    const currentRetryCount = (job.payload as unknown as Record<string, number>)._retryCount ?? 0;
+
     try {
       const result = await this.runWithTimeout(
         handler(job),
@@ -115,14 +119,14 @@ export class JobQueue {
 
       if (!result.success) {
         if (result.retryable) {
-          this.scheduleRetry(job, 0);
+          this.scheduleRetry(job, currentRetryCount);
         } else {
           console.error(`Job ${job.id} failed (terminal):`, result.error);
         }
       }
     } catch (err) {
       console.error(`Job ${job.id} threw unexpected error:`, err);
-      this.scheduleRetry(job, 0);
+      this.scheduleRetry(job, currentRetryCount);
     }
   }
 
@@ -171,10 +175,7 @@ export class JobQueue {
 
     for (const entry of readyRetries) {
       this.jobs.push(entry.job);
-      // 将 retryCount 附加到 job 的 payload 中（通过引用）
-      // 但这里我们使用闭包方式，在 processJob 中处理
-      // 实际上需要一种方式传递 retryCount
-      // 我们通过在 job payload 中存储 _retryCount 来实现
+      // 将 retryCount 附加到 job 的 payload 中，供 processJob 读取
       (entry.job.payload as unknown as Record<string, number>)._retryCount = entry.retryCount;
     }
 

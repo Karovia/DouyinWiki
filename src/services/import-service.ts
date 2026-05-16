@@ -272,41 +272,53 @@ export class ImportService {
 
     validateTransition(job.status, status);
 
-    const updateData: Record<string, unknown> = {
+    // 构建类型安全的更新对象
+    const setData: {
+      status: JobStatus;
+      updatedAt: Date;
+      step?: string;
+      progress?: number;
+      errorCode?: string | null;
+      errorMessage?: string | null;
+      nextRetryAt?: Date | null;
+      finishedAt?: Date;
+      lastErrorAt?: Date;
+      retryCount?: number;
+    } = {
       status,
       updatedAt: new Date(),
     };
 
     if (options?.step !== undefined) {
-      updateData.step = options.step;
+      setData.step = options.step;
     }
     if (options?.progress !== undefined) {
-      updateData.progress = options.progress;
+      setData.progress = options.progress;
     }
     if (options?.errorCode !== undefined) {
-      updateData.errorCode = options.errorCode;
+      setData.errorCode = options.errorCode;
     }
     if (options?.errorMessage !== undefined) {
-      updateData.errorMessage = options.errorMessage;
+      setData.errorMessage = options.errorMessage;
     }
     if (options?.nextRetryAt !== undefined) {
-      updateData.nextRetryAt = options.nextRetryAt;
+      setData.nextRetryAt = options.nextRetryAt;
     }
 
     // 如果进入终止状态，记录完成时间
     if (status === 'completed' || status === 'partial_completed' || status === 'failed_terminal' || status === 'cancelled') {
-      updateData.finishedAt = new Date();
+      setData.finishedAt = new Date();
     }
 
     // 如果进入失败状态，记录错误时间和重试次数
     if (status === 'failed_retryable' || status === 'failed_terminal') {
-      updateData.lastErrorAt = new Date();
-      updateData.retryCount = (job.retryCount ?? 0) + 1;
+      setData.lastErrorAt = new Date();
+      setData.retryCount = (job.retryCount ?? 0) + 1;
     }
 
     await db
       .update(ingestionJobs)
-      .set(updateData)
+      .set(setData)
       .where(and(eq(ingestionJobs.id, jobId), eq(ingestionJobs.workspaceId, workspaceId)));
 
     const updated = await this.getJobStatus(jobId, workspaceId);

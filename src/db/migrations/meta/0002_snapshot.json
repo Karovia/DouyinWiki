@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e36ba4b6-9d80-450b-ba5d-2cb3ea9683eb",
-  "prevId": "5a7d93a1-63ea-4ffd-b734-eead7faaf4f7",
+  "id": "ce05ca1b-ed7b-4513-af2c-3816a79c3ebc",
+  "prevId": "349c3cae-7be6-4f4d-961a-7a0781d29a73",
   "tables": {
     "ingestion_jobs": {
       "name": "ingestion_jobs",

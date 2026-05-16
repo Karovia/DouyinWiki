@@ -41,6 +41,7 @@ export const importRouter = router({
             jobId: job.id,
             videoId: job.videoId!,
             shareUrl: input.shareUrl,
+            workspaceId: ctx.workspaceId,
           },
         });
 
