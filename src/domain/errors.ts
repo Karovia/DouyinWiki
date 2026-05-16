@@ -38,6 +38,9 @@ export const LLM_INVALID_OUTPUT = () =>
 export const VEC_INSERT_FAILED = () =>
   new AppError('VEC_INSERT_FAILED', 'Vector insert failed', true, 502);
 
+export const VEC_SEARCH_ERROR = () =>
+  new AppError('VEC_SEARCH_ERROR', 'Vector search failed', true, 502);
+
 // 任务层错误
 export const JOB_MAX_RETRY_EXCEEDED = () =>
   new AppError('JOB_MAX_RETRY_EXCEEDED', 'Max retry count exceeded', false, 422);
