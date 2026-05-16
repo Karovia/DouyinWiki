@@ -6,7 +6,7 @@ export const videos = sqliteTable('videos', {
   platform: text('platform').notNull().default('douyin'),
   platformVideoId: text('platform_video_id'),
   shareUrl: text('share_url').notNull(),
-  normalizedUrlHash: text('normalized_url_hash').notNull().unique(),
+  normalizedUrlHash: text('normalized_url_hash').notNull(),
   title: text('title'),
   description: text('description'),
   authorName: text('author_name'),
@@ -23,7 +23,9 @@ export const videos = sqliteTable('videos', {
   errorMessage: text('error_message'),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
-});
+}, (table) => [
+  uniqueIndex('idx_videos_workspace_url').on(table.workspaceId, table.normalizedUrlHash),
+]);
 
 export const ingestionJobs = sqliteTable('ingestion_jobs', {
   id: text('id').primaryKey(),
