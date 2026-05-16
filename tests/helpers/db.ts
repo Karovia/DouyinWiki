@@ -1,10 +1,19 @@
 import { createDbClient, type DbClient } from '../../src/db';
+import { mkdtempSync, unlinkSync, rmdirSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
+let dbCounter = 0;
 
 /**
- * 创建测试用内存数据库，手动创建表结构（:memory: 数据库无法读取文件系统迁移）
+ * 创建测试用独立数据库（使用临时文件，每个测试完全隔离）
+ * 使用临时文件而非 :memory:，因为 libsql 的 :memory: 在 transaction 中会使用不同连接导致表不可见
  */
 export async function createTestDb(): Promise<DbClient> {
-  const testDb = createDbClient(':memory:');
+  const dbName = `testdb_${Date.now()}_${++dbCounter}`;
+  const tmpDir = mkdtempSync(join(tmpdir(), 'douyin-wiki-test-'));
+  const dbPath = join(tmpDir, `${dbName}.db`);
+  const testDb = createDbClient(`file:${dbPath}`);
 
   const client = (testDb as any).$client;
 
@@ -82,6 +91,10 @@ export async function createTestDb(): Promise<DbClient> {
     ON ingestion_jobs(video_id)
   `);
 
+  // 将临时目录路径附加到 testDb 上，便于后续清理
+  (testDb as any).$testDbPath = dbPath;
+  (testDb as any).$testDbDir = tmpDir;
+
   return testDb;
 }
 
@@ -92,4 +105,18 @@ export async function cleanTestDb(testDb: DbClient): Promise<void> {
   const client = (testDb as any).$client;
   await client.execute(`DELETE FROM ingestion_jobs`);
   await client.execute(`DELETE FROM videos`);
+}
+
+/**
+ * 销毁测试数据库（删除数据文件）
+ */
+export function destroyTestDb(testDb: DbClient): void {
+  const dbPath = (testDb as any).$testDbPath;
+  const dbDir = (testDb as any).$testDbDir;
+  if (dbPath) {
+    try { unlinkSync(dbPath); } catch {}
+  }
+  if (dbDir) {
+    try { rmdirSync(dbDir); } catch {}
+  }
 }

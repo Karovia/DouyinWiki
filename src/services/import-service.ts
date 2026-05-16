@@ -1,5 +1,5 @@
 import { eq, and, count, sql } from 'drizzle-orm';
-import { db } from '../db';
+import { db, type DbClient } from '../db';
 import { videos, ingestionJobs } from '../db/schema';
 import { DouyinConnector } from '../infrastructure/douyin-connector';
 import { ImportJob, JobStatus } from '../domain/types';
@@ -49,13 +49,16 @@ function isUniqueConstraintError(err: unknown): boolean {
 }
 
 export class ImportService {
-  constructor(private connector: DouyinConnector) {}
+  constructor(
+    private connector: DouyinConnector,
+    private db: DbClient = db
+  ) {}
 
   async createImportJob(shareUrl: string, workspaceId: string = 'default'): Promise<ImportJob> {
     const parsed = await this.connector.parseUrl(shareUrl);
 
     try {
-      const result = await db.transaction(async (tx) => {
+      const result = await this.db.transaction(async (tx) => {
         const videoId = nanoid();
         await tx.insert(videos).values({
           id: videoId,
@@ -81,7 +84,7 @@ export class ImportService {
         return { jobId };
       });
 
-      const job = await db
+      const job = await this.db
         .select()
         .from(ingestionJobs)
         .where(eq(ingestionJobs.id, result.jobId))
@@ -90,7 +93,7 @@ export class ImportService {
       return mapRowToImportJob(job[0] as Record<string, unknown>);
     } catch (err) {
       if (isUniqueConstraintError(err)) {
-        const existingJob = await db
+        const existingJob = await this.db
           .select()
           .from(ingestionJobs)
           .where(
@@ -110,7 +113,7 @@ export class ImportService {
   }
 
   async getJobStatus(jobId: string, workspaceId: string): Promise<ImportJob | null> {
-    const result = await db
+    const result = await this.db
       .select()
       .from(ingestionJobs)
       .where(and(eq(ingestionJobs.id, jobId), eq(ingestionJobs.workspaceId, workspaceId)))
@@ -134,13 +137,13 @@ export class ImportService {
 
     const whereClause = and(...whereConditions);
 
-    const countResult = await db
+    const countResult = await this.db
       .select({ value: count() })
       .from(ingestionJobs)
       .where(whereClause);
     const total = countResult[0]?.value ?? 0;
 
-    const rows = await db
+    const rows = await this.db
       .select()
       .from(ingestionJobs)
       .where(whereClause)
@@ -170,7 +173,7 @@ export class ImportService {
 
     validateTransition(job.status, 'cancelled');
 
-    await db
+    await this.db
       .update(ingestionJobs)
       .set({
         status: 'cancelled',
@@ -213,7 +216,7 @@ export class ImportService {
 
     validateTransition(job.status, retryState);
 
-    await db
+    await this.db
       .update(ingestionJobs)
       .set({
         status: retryState,
@@ -293,7 +296,7 @@ export class ImportService {
       setData.retryCount = (job.retryCount ?? 0) + 1;
     }
 
-    await db
+    await this.db
       .update(ingestionJobs)
       .set(setData)
       .where(and(eq(ingestionJobs.id, jobId), eq(ingestionJobs.workspaceId, workspaceId)));

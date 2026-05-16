@@ -1,16 +1,18 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { db } from '../../src/db';
-import { ingestionJobs, videos } from '../../src/db/schema';
+import { createTestDb, cleanTestDb } from '../helpers/db';
 import { ImportService } from '../../src/services/import-service';
 import { MockDouyinConnector } from '../../src/infrastructure/douyin-connector';
+import type { DbClient } from '../../src/db';
 
 describe('import-flow integration', () => {
-  const connector = new MockDouyinConnector();
-  const importService = new ImportService(connector);
+  let testDb: DbClient;
+  let importService: ImportService;
 
   beforeEach(async () => {
-    await db.delete(ingestionJobs);
-    await db.delete(videos);
+    testDb = await createTestDb();
+    await cleanTestDb(testDb);
+    const connector = new MockDouyinConnector();
+    importService = new ImportService(connector, testDb);
   });
 
   describe('workspace isolation', () => {
