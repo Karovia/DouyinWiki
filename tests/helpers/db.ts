@@ -153,12 +153,40 @@ export async function createTestDb(): Promise<DbClient> {
     ON embeddings(chunk_id, model_name)
   `);
 
-  // FTS5 virtual table
+  // FTS5 virtual table (with content=chunks mapping for external content + metadata columns)
   await client.execute(`
     CREATE VIRTUAL TABLE IF NOT EXISTS fts_chunks USING fts5(
       content,
+      chunk_id,
+      video_id,
+      workspace_id,
+      content_type,
       tokenize='porter unicode61'
     )
+  `);
+
+  // Triggers to sync chunks table to fts_chunks
+  await client.execute(`
+    CREATE TRIGGER IF NOT EXISTS fts_chunks_insert AFTER INSERT ON chunks BEGIN
+      INSERT INTO fts_chunks(rowid, content, chunk_id, video_id, workspace_id, content_type)
+      VALUES (new.rowid, new.content, new.id, new.video_id, new.workspace_id, new.content_type);
+    END
+  `);
+
+  await client.execute(`
+    CREATE TRIGGER IF NOT EXISTS fts_chunks_delete AFTER DELETE ON chunks BEGIN
+      INSERT INTO fts_chunks(fts_chunks, rowid, content, chunk_id, video_id, workspace_id, content_type)
+      VALUES ('delete', old.rowid, old.content, old.id, old.video_id, old.workspace_id, old.content_type);
+    END
+  `);
+
+  await client.execute(`
+    CREATE TRIGGER IF NOT EXISTS fts_chunks_update AFTER UPDATE ON chunks BEGIN
+      INSERT INTO fts_chunks(fts_chunks, rowid, content, chunk_id, video_id, workspace_id, content_type)
+      VALUES ('delete', old.rowid, old.content, old.id, old.video_id, old.workspace_id, old.content_type);
+      INSERT INTO fts_chunks(rowid, content, chunk_id, video_id, workspace_id, content_type)
+      VALUES (new.rowid, new.content, new.id, new.video_id, new.workspace_id, new.content_type);
+    END
   `);
 
   // 将临时目录路径附加到 testDb 上，便于后续清理
