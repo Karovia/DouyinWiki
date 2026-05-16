@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, uniqueIndex, index } from 'drizzle-orm/sqlite-core';
 
 export const videos = sqliteTable('videos', {
   id: text('id').primaryKey(),
@@ -21,6 +21,9 @@ export const videos = sqliteTable('videos', {
   status: text('status').notNull().default('pending'),
   errorCode: text('error_code'),
   errorMessage: text('error_message'),
+  graphStatus: text('graph_status').notNull().default('pending'),
+  graphError: text('graph_error'),
+  graphBuiltAt: integer('graph_built_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 }, (table) => [
@@ -93,4 +96,54 @@ export const embeddings = sqliteTable('embeddings', {
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 }, (table) => [
   uniqueIndex('idx_embeddings_chunk_model').on(table.chunkId, table.modelName),
+]);
+
+export const graphNodes = sqliteTable('graph_nodes', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull(),
+  nodeType: text('node_type').notNull(), // 'video' | 'entity' | 'author'
+  businessId: text('business_id').notNull(),
+  canonicalKey: text('canonical_key'),
+  label: text('label').notNull(),
+  properties: text('properties'), // JSON
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+}, (table) => [
+  uniqueIndex('idx_graph_nodes_unique').on(table.workspaceId, table.nodeType, table.businessId),
+  index('idx_graph_nodes_workspace_type').on(table.workspaceId, table.nodeType),
+]);
+
+export const graphEdges = sqliteTable('graph_edges', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull(),
+  sourceNodeId: text('source_node_id').notNull(),
+  targetNodeId: text('target_node_id').notNull(),
+  relationType: text('relation_type').notNull(), // 'same_topic' | 'mentions'
+  weight: real('weight').notNull().default(0.5),
+  computedBy: text('computed_by').notNull(),
+  evidence: text('evidence'), // JSON
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+}, (table) => [
+  uniqueIndex('idx_graph_edges_unique').on(
+    table.workspaceId, table.sourceNodeId, table.targetNodeId, table.relationType
+  ),
+  index('idx_edges_source_type_weight').on(
+    table.workspaceId, table.sourceNodeId, table.relationType, table.weight
+  ),
+  index('idx_edges_target_type_weight').on(
+    table.workspaceId, table.targetNodeId, table.relationType, table.weight
+  ),
+]);
+
+export const entityAliases = sqliteTable('entity_aliases', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull(),
+  alias: text('alias').notNull(),
+  canonicalNodeId: text('canonical_node_id').notNull(),
+  source: text('source').notNull().default('auto_detected'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+}, (table) => [
+  index('idx_entity_aliases_lookup').on(table.workspaceId, table.alias),
+  index('idx_entity_aliases_canonical').on(table.workspaceId, table.canonicalNodeId),
 ]);
