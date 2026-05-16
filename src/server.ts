@@ -6,6 +6,7 @@ import { router } from './api/trpc';
 import { importRouter } from './api/routers/import';
 import { videosRouter } from './api/routers/videos';
 import { searchRouter } from './api/routers/search';
+import { graphRouter } from './api/routers/graph';
 import { MockDouyinConnector } from './infrastructure/douyin-connector';
 import { MockLLMClient } from './infrastructure/llm-client';
 import { MockASRClient } from './infrastructure/asr-client';
@@ -18,7 +19,9 @@ import { registerChunkWorker } from './workers/chunk-worker';
 import { registerSummaryWorker } from './workers/summary-worker';
 import { registerEmbedWorker } from './workers/embed-worker';
 import { registerIndexWorker } from './workers/index-worker';
+import { registerGraphWorker } from './workers/graph-worker';
 import { ImportService } from './services/import-service';
+import { GraphBuilder } from './domain/graph-builder';
 import { db } from './db';
 
 // 初始化依赖
@@ -44,11 +47,15 @@ registerSummaryWorker(queue, llm, importService);
 registerEmbedWorker(queue, embeddingClient, importService);
 registerIndexWorker(queue, vectorStore, importService);
 
+const graphBuilder = new GraphBuilder(vectorStore);
+registerGraphWorker(queue, graphBuilder, importService);
+
 // 合并 tRPC Router
 export const appRouter = router({
   import: importRouter,
   videos: videosRouter,
   search: searchRouter,
+  graph: graphRouter,
 });
 
 export type AppRouter = typeof appRouter;
@@ -82,6 +89,6 @@ serve({
 });
 
 console.log(`Server running at http://localhost:${port}`);
-console.log('Registered workers: parse_metadata, transcribe, chunk, summarize, embed, index');
+console.log('Registered workers: parse_metadata, transcribe, chunk, summarize, embed, index, graph_building');
 
 export default app;

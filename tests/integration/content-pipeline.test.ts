@@ -15,6 +15,8 @@ import { registerChunkWorker } from '../../src/workers/chunk-worker';
 import { registerSummaryWorker } from '../../src/workers/summary-worker';
 import { registerEmbedWorker } from '../../src/workers/embed-worker';
 import { registerIndexWorker } from '../../src/workers/index-worker';
+import { registerGraphWorker } from '../../src/workers/graph-worker';
+import { GraphBuilder } from '../../src/domain/graph-builder';
 import type { DbClient } from '../../src/db';
 
 async function waitForJobCompletion(
@@ -63,6 +65,9 @@ describe('Content Pipeline E2E', () => {
     registerSummaryWorker(testQueue, llm, importService, testDb);
     registerEmbedWorker(testQueue, embeddingClient, importService, testDb);
     registerIndexWorker(testQueue, vectorStore, importService, testDb);
+
+    const graphBuilder = new GraphBuilder(vectorStore);
+    registerGraphWorker(testQueue, graphBuilder, importService, testDb);
   });
 
   it('should complete full pipeline: parse -> transcribe -> chunk -> summarize -> embed -> index', async () => {

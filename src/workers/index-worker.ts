@@ -5,6 +5,7 @@ import { VectorStore } from '../infrastructure/vector-store';
 import { VectorChunk } from '../domain/types';
 import { QueueJob, JobResult, JobQueue } from './queue';
 import { ImportService } from '../services/import-service';
+import { nanoid } from 'nanoid';
 
 export function registerIndexWorker(
   queueInstance: JobQueue,
@@ -33,10 +34,17 @@ export function registerIndexWorker(
         .set({ status: 'completed' })
         .where(eq(videos.id, videoId));
 
-      // 完成任务
-      await importService.updateJobStatus(jobId, workspaceId, 'completed', {
-        step: 'completed',
-        progress: 100,
+      // 更新视频状态为 completed
+      await dbClient
+        .update(videos)
+        .set({ status: 'completed' })
+        .where(eq(videos.id, videoId));
+
+      // 入队 graph_building 任务
+      queueInstance.enqueue({
+        id: `${jobId}-graph`,
+        type: 'graph_building',
+        payload: { jobId, videoId, shareUrl: job.payload.shareUrl, workspaceId },
       });
 
       return { success: true };

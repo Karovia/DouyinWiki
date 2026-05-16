@@ -4,7 +4,8 @@ export type JobType =
   | 'chunk'
   | 'summarize'
   | 'embed'
-  | 'index';
+  | 'index'
+  | 'graph_building';
 
 export interface QueueJob {
   id: string;
