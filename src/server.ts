@@ -23,7 +23,7 @@ const queue = new JobQueue({
   jobTimeoutMs: 30000,
 });
 
-registerParseWorker(queue, connector, llm, importService);
+registerParseWorker(queue, connector, importService);
 
 // 合并 tRPC Router
 export const appRouter = router({

@@ -2,18 +2,17 @@ import { eq } from 'drizzle-orm';
 import { db } from '../db';
 import { videos } from '../db/schema';
 import { DouyinConnector } from '../infrastructure/douyin-connector';
-import { LLMClient } from '../infrastructure/llm-client';
 import { JobQueue, JobResult } from './queue';
 import { ImportService } from '../services/import-service';
 import { AppError } from '../domain/errors';
+import { queue } from './queue';
 
 export function registerParseWorker(
-  queue: JobQueue,
+  queueInstance: JobQueue,
   connector: DouyinConnector,
-  llm: LLMClient,
   importService: ImportService
 ) {
-  queue.register('parse_metadata', async (job): Promise<JobResult> => {
+  queueInstance.register('parse_metadata', async (job): Promise<JobResult> => {
     const { jobId, videoId, shareUrl, workspaceId } = job.payload;
 
     // 从 payload 中获取重试次数（由队列注入）
@@ -47,28 +46,20 @@ export function registerParseWorker(
         })
         .where(eq(videos.id, videoId));
 
-      // 4. 生成 AI 摘要
-      await importService.updateJobStatus(jobId, workspaceId, 'summarizing', {
-        step: 'summarizing',
+      // 4. 更新状态并入队转写任务
+      await importService.updateJobStatus(jobId, workspaceId, 'fetching_content', {
+        step: 'fetching_content',
       });
 
-      const summaryText = `${metadata.title || ''}\n${metadata.description || ''}`;
-      const aiSummary = await llm.generateSummary(summaryText);
-      const aiTags = await llm.generateTags(summaryText);
-
-      await db
-        .update(videos)
-        .set({
-          aiSummary,
-          aiTags: JSON.stringify(aiTags),
-          status: 'completed',
-        })
-        .where(eq(videos.id, videoId));
-
-      // 5. 完成任务
-      await importService.updateJobStatus(jobId, workspaceId, 'completed', {
-        step: 'completed',
-        progress: 100,
+      queue.enqueue({
+        id: `${jobId}-transcribe`,
+        type: 'transcribe',
+        payload: {
+          jobId,
+          videoId,
+          shareUrl,
+          workspaceId,
+        },
       });
 
       return { success: true };

@@ -1,11 +1,20 @@
+export type JobType =
+  | 'parse_metadata'
+  | 'transcribe'
+  | 'chunk'
+  | 'summarize'
+  | 'embed'
+  | 'index';
+
 export interface QueueJob {
   id: string;
-  type: 'parse_metadata';
+  type: JobType;
   payload: {
     jobId: string;
     videoId: string;
     shareUrl: string;
     workspaceId: string;
+    [key: string]: unknown;
   };
 }
 
