@@ -130,8 +130,8 @@ cancelled
 |------|------|----------|
 | Task 1: 数据库 Schema 增强 - 幂等索引与任务字段 | ✅ | 2026-05-16 |
 | Task 2: 状态机增强与任务生命周期管理 API | ✅ | 2026-05-16 |
-| Task 3: 集成测试 - 跨 workspace 隔离与 E2E | ⬜ | - |
-| Task 4: Worker 系统增强 - 重试、超时与并发控制 | ⬜ | - |
+| Task 3: 集成测试 - 跨 workspace 隔离与 E2E | ✅ | 2026-05-16 |
+| Task 4: Worker 系统增强 - 重试、超时与并发控制 | ✅ | 2026-05-16 |
 | Phase 3：内容增强 | Week 5-6 | ASR/手动字幕、Chunk 表、Chunk Embedding | 问答可引用具体片段，支持时间戳 |
 | Phase 4：混合检索 | Week 7 | BM25 + 向量 + 标签过滤 + Rerank | 搜索结果能返回视频和命中片段 |
 | Phase 5：图谱离线化 | Week 8 | TopK 边生成、局部图谱、聚类展示 | 1000 条视频内图谱页面流畅可用 |
@@ -1656,6 +1656,37 @@ git commit -m "feat(phase1): complete MVP with E2E import flow"
 ---
 
 ## Phase 2 详细实施计划
+
+### Task 3：集成测试 - 跨 workspace 隔离与 E2E
+
+**Files:**
+- Created: `tests/integration/import-flow.test.ts`
+- Modified: `src/services/import-service.ts`
+- Modified: `src/domain/state-machine.ts`
+
+- [x] **Step 1：编写集成测试**
+  - 跨 workspace 数据隔离测试（创建、列表、访问隔离）
+  - 端到端导入流程测试（created → parsing_metadata → ... → completed）
+  - 幂等性测试（同一 workspace + URL 返回相同 job，不同 workspace 允许重复）
+  - 状态机非法转换测试（跳步拒绝、终止状态拒绝再转换）
+  - 取消和重试测试（取消后不可更新、重试后状态重置）
+
+- [x] **Step 2：修复测试中发现的问题**
+  - 修复 `videos` 表 UNIQUE 约束冲突未被捕获（增强 `isUniqueConstraintError` 检测嵌套错误）
+  - 修复状态机不允许 `failed_retryable` 回退到之前状态（添加 `isRetryTransition` 辅助函数）
+
+- [x] **Step 3：TypeScript 编译检查**
+  - 运行 `npx tsc --noEmit` - 通过
+
+- [x] **Step 4：运行全部测试**
+  - 单元测试：22 个通过
+  - 集成测试：9 个通过
+  - 总计：31 个测试全部通过
+
+- [x] **Step 5：提交代码**
+  - Commit: `feat(phase2): 添加集成测试覆盖跨 workspace 隔离与 E2E 导入流程`
+
+---
 
 ### Task 2：状态机增强与任务生命周期管理 API
 

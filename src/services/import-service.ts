@@ -35,7 +35,20 @@ function mapRowToImportJob(row: Record<string, unknown>): ImportJob {
 }
 
 function isUniqueConstraintError(err: unknown): boolean {
-  return err instanceof Error && err.message.includes('UNIQUE constraint failed');
+  if (!(err instanceof Error)) return false;
+  // 直接匹配错误消息
+  if (err.message.includes('UNIQUE constraint failed')) return true;
+  // 匹配 LibSQL 错误码
+  if ((err as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') return true;
+  if ((err as { code?: string }).code === 'SQLITE_CONSTRAINT') return true;
+  // 匹配嵌套在 cause 中的错误
+  const cause = (err as { cause?: unknown }).cause;
+  if (cause instanceof Error) {
+    if (cause.message.includes('UNIQUE constraint failed')) return true;
+    if ((cause as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') return true;
+    if ((cause as { code?: string }).code === 'SQLITE_CONSTRAINT') return true;
+  }
+  return false;
 }
 
 export class ImportService {
@@ -81,7 +94,7 @@ export class ImportService {
 
       return mapRowToImportJob(job[0] as Record<string, unknown>);
     } catch (err) {
-      // 3. 捕获唯一约束冲突，返回已有任务
+      // 3. 捕获唯一约束冲突（videos 或 ingestion_jobs），返回已有任务
       if (isUniqueConstraintError(err)) {
         const existingJob = await db
           .select()

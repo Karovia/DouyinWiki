@@ -38,6 +38,14 @@ export function canTransition(from: JobStatus, to: JobStatus): boolean {
   return toIndex === fromIndex + 1;
 }
 
+/**
+ * 判断是否为重试转换：从 failed_retryable 回到之前的状态
+ */
+function isRetryTransition(from: JobStatus, to: JobStatus): boolean {
+  if (from !== 'failed_retryable') return false;
+  return FORWARD_STATES.includes(to);
+}
+
 export function getNextState(current: JobStatus): JobStatus | null {
   const idx = FORWARD_STATES.indexOf(current);
   if (idx === -1 || idx >= FORWARD_STATES.length - 1) return null;
@@ -81,12 +89,13 @@ export function canCancel(status: JobStatus): boolean {
  * 验证状态转换，非法时抛出 AppError
  */
 export function validateTransition(from: JobStatus, to: JobStatus): void {
-  if (!canTransition(from, to)) {
-    throw new AppError(
-      'JOB_INVALID_TRANSITION',
-      `Invalid status transition from "${from}" to "${to}"`,
-      false,
-      409
-    );
+  if (canTransition(from, to) || isRetryTransition(from, to)) {
+    return;
   }
+  throw new AppError(
+    'JOB_INVALID_TRANSITION',
+    `Invalid status transition from "${from}" to "${to}"`,
+    false,
+    409
+  );
 }
