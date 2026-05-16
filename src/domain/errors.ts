@@ -47,3 +47,13 @@ export const JOB_MAX_RETRY_EXCEEDED = () =>
 
 export const JOB_CANCELLED = () =>
   new AppError('JOB_CANCELLED', 'Job was cancelled', false, 409);
+
+// 图谱层错误
+export const GRAPH_NODE_NOT_FOUND = (nodeId: string) =>
+  new AppError('GRAPH_NODE_NOT_FOUND', `Graph node not found: ${nodeId}`, false, 404);
+
+export const GRAPH_EDGE_EXISTS = () =>
+  new AppError('GRAPH_EDGE_EXISTS', 'Graph edge already exists', false, 409);
+
+export const GRAPH_BUILD_FAILED = (reason: string) =>
+  new AppError('GRAPH_BUILD_FAILED', `Graph build failed: ${reason}`, true, 502);
