@@ -49,6 +49,9 @@ export interface ImportJob {
   errorCode?: string;
   errorMessage?: string;
   videoId?: string;
+  nextRetryAt?: Date;
+  lastErrorAt?: Date;
+  attemptedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
