@@ -5,7 +5,6 @@ import { DouyinConnector } from '../infrastructure/douyin-connector';
 import { JobQueue, JobResult } from './queue';
 import { ImportService } from '../services/import-service';
 import { AppError } from '../domain/errors';
-import { queue } from './queue';
 
 export function registerParseWorker(
   queueInstance: JobQueue,
@@ -47,7 +46,7 @@ export function registerParseWorker(
       });
 
       // 入队 transcribe 任务
-      queue.enqueue({
+      queueInstance.enqueue({
         id: `${jobId}-transcribe`,
         type: 'transcribe',
         payload: {

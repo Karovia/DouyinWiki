@@ -4,7 +4,6 @@ import { chunks } from '../db/schema';
 import { EmbeddingClient } from '../infrastructure/embedding-client';
 import { JobQueue, JobResult } from './queue';
 import { ImportService } from '../services/import-service';
-import { queue } from './queue';
 
 export function registerEmbedWorker(
   queueInstance: JobQueue,
@@ -26,7 +25,7 @@ export function registerEmbedWorker(
         .where(eq(chunks.videoId, videoId));
 
       if (chunkRows.length === 0) {
-        queue.enqueue({
+        queueInstance.enqueue({
           id: `${jobId}-index`,
           type: 'index',
           payload: { jobId, videoId, shareUrl: job.payload.shareUrl, workspaceId, skipEmbedding: true },
@@ -51,7 +50,7 @@ export function registerEmbedWorker(
         createdAt: new Date(),
       }));
 
-      queue.enqueue({
+      queueInstance.enqueue({
         id: `${jobId}-index`,
         type: 'index',
         payload: {

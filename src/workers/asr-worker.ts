@@ -6,7 +6,6 @@ import { JobQueue, JobResult } from './queue';
 import { ImportService } from '../services/import-service';
 import { AppError } from '../domain/errors';
 import { nanoid } from 'nanoid';
-import { queue } from './queue';
 
 export function registerASRWorker(
   queueInstance: JobQueue,
@@ -40,7 +39,7 @@ export function registerASRWorker(
         step: 'chunking',
       });
 
-      queue.enqueue({
+      queueInstance.enqueue({
         id: `${jobId}-chunk`,
         type: 'chunk',
         payload: { jobId, videoId, shareUrl, workspaceId, transcriptId },

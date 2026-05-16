@@ -4,8 +4,6 @@ import { videos } from '../db/schema';
 import { LLMClient } from '../infrastructure/llm-client';
 import { JobQueue, JobResult } from './queue';
 import { ImportService } from '../services/import-service';
-import { queue } from './queue';
-
 export function registerSummaryWorker(
   queueInstance: JobQueue,
   llm: LLMClient,
@@ -43,7 +41,7 @@ export function registerSummaryWorker(
         })
         .where(eq(videos.id, videoId));
 
-      queue.enqueue({
+      queueInstance.enqueue({
         id: `${jobId}-embed`,
         type: 'embed',
         payload: { jobId, videoId, shareUrl: job.payload.shareUrl, workspaceId },

@@ -82,7 +82,7 @@ export class JobQueue {
     if (this.isRunning) return;
     this.isRunning = true;
 
-    while ((this.jobs.length > 0 || this.retryJobs.length > 0) && !this.stopped) {
+    while ((this.jobs.length > 0 || this.retryJobs.length > 0 || this.runningCount > 0) && !this.stopped) {
       // 优先处理重试队列中到期的任务
       this.processRetries();
 
@@ -104,6 +104,8 @@ export class JobQueue {
       } else if (this.jobs.length === 0 && this.retryJobs.length > 0) {
         // 等待下一个重试任务到期
         await new Promise((r) => setTimeout(r, 100));
+      } else if (this.jobs.length === 0 && this.runningCount === 0) {
+        break;
       }
     }
 

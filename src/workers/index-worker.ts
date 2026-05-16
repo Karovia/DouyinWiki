@@ -30,6 +30,10 @@ export function registerIndexWorker(
         .set({ status: 'completed' })
         .where(eq(videos.id, videoId));
 
+      await importService.updateJobStatus(jobId, workspaceId, 'graph_updating', {
+        step: 'graph_updating',
+      });
+
       await importService.updateJobStatus(jobId, workspaceId, 'completed', {
         step: 'completed',
         progress: 100,

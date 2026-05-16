@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '../../src/db';
-import { ingestionJobs, videos } from '../../src/db/schema';
+import { ingestionJobs, videos, transcripts, chunks, embeddings } from '../../src/db/schema';
 import { ImportService } from '../../src/services/import-service';
 import { MockDouyinConnector } from '../../src/infrastructure/douyin-connector';
 
@@ -9,6 +9,9 @@ describe('import-flow integration', () => {
   const importService = new ImportService(connector);
 
   beforeEach(async () => {
+    await db.delete(embeddings);
+    await db.delete(chunks);
+    await db.delete(transcripts);
     await db.delete(ingestionJobs);
     await db.delete(videos);
   });

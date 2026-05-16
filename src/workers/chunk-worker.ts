@@ -5,7 +5,6 @@ import { JobQueue, JobResult } from './queue';
 import { ImportService } from '../services/import-service';
 import { TranscriptSegment } from '../domain/types';
 import { nanoid } from 'nanoid';
-import { queue } from './queue';
 
 export function registerChunkWorker(
   queueInstance: JobQueue,
@@ -48,7 +47,7 @@ export function registerChunkWorker(
         }
       }
 
-      queue.enqueue({
+      queueInstance.enqueue({
         id: `${jobId}-summarize`,
         type: 'summarize',
         payload: { jobId, videoId, shareUrl: job.payload.shareUrl, workspaceId },
