@@ -22,6 +22,13 @@
       "when": 1778919862180,
       "tag": "0002_spotty_power_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1778922655285,
+      "tag": "0003_loose_malcolm_colcord",
+      "breakpoints": true
     }
   ]
 }
