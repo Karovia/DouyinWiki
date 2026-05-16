@@ -147,7 +147,7 @@ cancelled
 | Task 2: 状态机增强与任务生命周期管理 API | ✅ | 2026-05-16 |
 | Task 3: 集成测试 - 跨 workspace 隔离与 E2E | ✅ | 2026-05-16 |
 | Task 4: Worker 系统增强 - 重试、超时与并发控制 | ✅ | 2026-05-16 |
-| Phase 3：内容增强 | Week 5-6 | ASR/手动字幕、Chunk 表、Chunk Embedding | 问答可引用具体片段，支持时间戳 |
+| Phase 3：内容增强 | ✅ 2026-05-16 | ASR/手动字幕、Chunk 表、Chunk Embedding、语义搜索 | 问答可引用具体片段，支持时间戳 |
 | Phase 4：混合检索 | Week 7 | BM25 + 向量 + 标签过滤 + Rerank | 搜索结果能返回视频和命中片段 |
 | Phase 5：图谱离线化 | Week 8 | TopK 边生成、局部图谱、聚类展示 | 1000 条视频内图谱页面流畅可用 |
 | Phase 6：多用户与运营化 | Week 9-10 | Workspace、权限、限流、成本统计、删除能力 | 多用户数据隔离通过测试 |
@@ -1766,3 +1766,73 @@ git commit -m "feat(phase1): complete MVP with E2E import flow"
 
 - [x] **Step 7：提交代码**
   - Commit: `feat(phase2): 增强状态机与任务生命周期管理 API`
+
+---
+
+## Phase 3 详细实施计划
+
+### 总体进度
+
+| Task | 模块 | 状态 | 完成时间 | 备注 |
+|------|------|:----:|:--------:|------|
+| Task 1 | 数据库 Schema 增强 - transcripts / chunks / embeddings | ✅ | 2026-05-16 | |
+| Task 2 | 领域类型扩展 - Transcript / Chunk / VectorChunk / SearchHit | ✅ | 2026-05-16 | |
+| Task 3 | ASR 客户端接口与 Mock 实现 | ✅ | 2026-05-16 | |
+| Task 4 | Embedding 客户端接口与 Mock 实现 | ✅ | 2026-05-16 | |
+| Task 5 | SQLiteVectorStore 实现 | ✅ | 2026-05-16 | 含单元测试 |
+| Task 6 | SearchService 语义搜索服务 | ✅ | 2026-05-16 | |
+| Task 7 | tRPC search 路由 | ✅ | 2026-05-16 | |
+| Task 8 | 重构 ParseWorker - 移除 LLM 摘要，纯元数据解析 | ✅ | 2026-05-16 | |
+| Task 9 | ASRWorker - 转写任务处理 | ✅ | 2026-05-16 | |
+| Task 10 | ChunkWorker - 文本分片 | ✅ | 2026-05-16 | |
+| Task 11 | SummaryWorker - AI 摘要与标签 | ✅ | 2026-05-16 | |
+| Task 12 | EmbedWorker - 向量生成 | ✅ | 2026-05-16 | |
+| Task 13 | IndexWorker - 向量入库与任务完成 | ✅ | 2026-05-16 | |
+| Task 14 | E2E 集成测试 - 完整流水线 + 语义搜索 + 隔离 | ✅ | 2026-05-16 | |
+| Task 15 | 修复队列竞态条件与回归测试 | ✅ | 2026-05-16 | |
+
+### Task 1-2：Schema 与领域类型扩展
+
+- [x] 新增 `transcripts` 表（video_id FK, source, segments, raw_text）
+- [x] 新增 `chunks` 表（video_id FK, content_type, chunk_index, content, content_hash, start/end_time_ms）
+- [x] 新增 `embeddings` 表（chunk_id FK, video_id FK, model_name, dimension, embedding JSON, content_hash）
+- [x] 领域类型：`TranscriptSegment`, `Transcript`, `Chunk`, `VectorChunk`, `SearchHit`, `SearchFilter`
+- [x] 生成并执行迁移
+
+### Task 3-5：基础设施适配器
+
+- [x] `MockASRClient`：返回 5 段带时间戳的中文模拟转写
+- [x] `MockEmbeddingClient`：基于文本哈希生成确定性 384 维归一化向量
+- [x] `SQLiteVectorStore`：upsert / search（内存余弦相似度）/ deleteByOwner
+- [x] 单元测试：向量入库、workspace 隔离、contentType 过滤
+
+### Task 6-7：搜索服务与 API
+
+- [x] `SearchService.semanticSearch()`：query embedding → vectorStore.search → 返回 SearchHit[]
+- [x] tRPC `search.semantic` 端点：支持 query / topK / contentTypes 过滤
+
+### Task 8-13：Worker 流水线重构
+
+- [x] `ParseWorker`：纯元数据解析，enqueue `transcribe`
+- [x] `ASRWorker`：调用 ASR，保存 transcript，enqueue `chunk`
+- [x] `ChunkWorker`：按 150 字/句边界分片，保存 chunks，enqueue `summarize`
+- [x] `SummaryWorker`：生成 AI 摘要和标签，enqueue `embed`
+- [x] `EmbedWorker`：生成 embeddings，enqueue `index` 携带 vectorChunks
+- [x] `IndexWorker`：upsert 向量，更新 video status = completed，job status → graph_updating → completed
+
+### Task 14-15：测试与修复
+
+- [x] E2E 集成测试：完整流水线（3 个测试）
+  - 单视频全链路：parse → transcribe → chunk → summarize → embed → index → completed
+  - 语义搜索：pipeline 完成后搜索可返回结果
+  - Workspace 隔离：跨 workspace 搜索无串读
+- [x] 修复 `processLoop` 竞态条件：while 条件增加 `runningCount > 0`，防止运行中任务 enqueue 新任务时队列提前退出
+- [x] 修复 `mapRowToImportJob` progress 字段误用 retryCount
+- [x] 更新旧集成测试 `beforeEach` 清理顺序（先删子表再删父表）
+- [x] 全量测试：37 个测试全部通过（单元 3 + 旧集成 9 + 新集成 3 + 其他 22）
+
+```bash
+npx vitest run --no-file-parallelism
+# Test Files  4 passed (4)
+# Tests  37 passed (37)
+```
