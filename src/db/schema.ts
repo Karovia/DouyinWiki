@@ -50,3 +50,47 @@ export const ingestionJobs = sqliteTable('ingestion_jobs', {
 }, (table) => [
   uniqueIndex('idx_jobs_workspace_url').on(table.workspaceId, table.normalizedUrlHash),
 ]);
+
+export const transcripts = sqliteTable('transcripts', {
+  id: text('id').primaryKey(),
+  videoId: text('video_id').notNull().references(() => videos.id),
+  workspaceId: text('workspace_id').notNull().default('default'),
+  source: text('source').notNull(), // 'asr' | 'subtitle' | 'manual_note' | 'ocr'
+  modelName: text('model_name'),
+  language: text('language').default('zh'),
+  segments: text('segments'), // JSON: { start_ms, end_ms, text }[]
+  rawText: text('raw_text'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+}, (table) => [
+  uniqueIndex('idx_transcripts_video_source').on(table.videoId, table.source),
+]);
+
+export const chunks = sqliteTable('chunks', {
+  id: text('id').primaryKey(),
+  videoId: text('video_id').notNull().references(() => videos.id),
+  workspaceId: text('workspace_id').notNull().default('default'),
+  contentType: text('content_type').notNull(), // 'transcript' | 'summary' | 'title' | 'note'
+  chunkIndex: integer('chunk_index').notNull(),
+  content: text('content').notNull(),
+  contentHash: text('content_hash').notNull(),
+  startTimeMs: integer('start_time_ms'),
+  endTimeMs: integer('end_time_ms'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+}, (table) => [
+  uniqueIndex('idx_chunks_video_type_idx').on(table.videoId, table.contentType, table.chunkIndex),
+]);
+
+export const embeddings = sqliteTable('embeddings', {
+  id: text('id').primaryKey(),
+  chunkId: text('chunk_id').notNull().references(() => chunks.id),
+  videoId: text('video_id').notNull().references(() => videos.id),
+  workspaceId: text('workspace_id').notNull().default('default'),
+  modelName: text('model_name').notNull(),
+  dimension: integer('dimension').notNull(),
+  embedding: text('embedding').notNull(), // JSON array of floats
+  contentHash: text('content_hash').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+}, (table) => [
+  uniqueIndex('idx_embeddings_chunk_model').on(table.chunkId, table.modelName),
+]);

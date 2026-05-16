@@ -22,6 +22,13 @@
       "when": 1778919862180,
       "tag": "0002_spotty_power_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1778928468644,
+      "tag": "0003_rapid_kid_colt",
+      "breakpoints": true
     }
   ]
 }
