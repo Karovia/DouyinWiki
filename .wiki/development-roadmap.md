@@ -1783,3 +1783,69 @@ git commit -m "feat(phase1): complete MVP with E2E import flow"
 
 - [x] **Step 7：提交代码**
   - Commit: `feat(phase2): 增强状态机与任务生命周期管理 API`
+
+---
+
+## Phase 4 详细实施计划
+
+### Phase 4 总体进度
+
+| Task | 模块 | 状态 | 完成时间 | 备注 |
+|------|------|:----:|:--------:|------|
+| Task 1 | FTS5 虚拟表与同步触发器 | ✅ | 2026-05-16 | `fts_chunks` + insert/delete/update triggers |
+| Task 2 | BM25Search 接口与实现 | ✅ | 2026-05-16 | `SQLiteBM25Search` + 单元测试 |
+
+---
+
+### Task 1：FTS5 虚拟表与同步触发器
+
+**Files:**
+- Created: `src/db/migrations/0004_modern_leopardon.sql`
+
+- [x] **Step 1：创建 FTS5 虚拟表**
+  - 使用 `content='chunks'` 和 `content_rowid='rowid'` 映射到 `chunks` 表
+  - `tokenize='porter unicode61'` 支持中文和英文分词
+
+- [x] **Step 2：创建同步触发器**
+  - `fts_chunks_insert`：插入 `chunks` 时同步到 `fts_chunks`
+  - `fts_chunks_delete`：删除 `chunks` 时从 `fts_chunks` 删除
+  - `fts_chunks_update`：更新 `chunks` 时先删后插
+
+- [x] **Step 3：提交代码**
+  - Commit: `feat(db): add FTS5 virtual table for BM25 full-text search`
+
+---
+
+### Task 2：BM25Search 接口与实现
+
+**Files:**
+- Created: `src/infrastructure/bm25-search.ts`
+- Created: `tests/unit/bm25-search.test.ts`
+- Modified: `tests/helpers/db.ts`
+
+- [x] **Step 1：编写 BM25Search 单元测试（TDD）**
+  - 测试关键词搜索 `Python`
+  - 测试 workspace 隔离
+  - 测试 contentType 过滤
+  - 测试 BM25 分数返回
+
+- [x] **Step 2：运行测试验证失败**
+  - 预期失败：`SQLiteBM25Search` 不存在
+
+- [x] **Step 3：实现 SQLiteBM25Search**
+  - 实现 `BM25Search` 接口
+  - 使用 `bm25(fts_chunks)` 进行全文检索
+  - workspace 隔离（FTS5 查询 + chunks 查询双重过滤）
+  - contentType 和 videoIds 过滤
+  - BM25 分数转换（lower-is-better → higher-is-better）
+  - 查询清洗防止 FTS5 语法错误
+
+- [x] **Step 4：运行测试验证通过**
+  - 4 个测试全部通过
+
+- [x] **Step 5：更新测试 helper**
+  - 更新 `tests/helpers/db.ts` 中 FTS5 表结构，添加 `chunk_id`, `video_id`, `workspace_id`, `content_type` 列
+  - 添加 insert/delete/update 触发器
+
+- [x] **Step 6：提交代码**
+  - Commit: `feat(search): add BM25 full-text search with SQLite FTS5`
