@@ -80,3 +80,62 @@ export interface Video {
   createdAt: Date | string;
   updatedAt: Date | string;
 }
+
+export interface TranscriptSegment {
+  startMs: number;
+  endMs: number;
+  text: string;
+}
+
+export interface Transcript {
+  id: string;
+  videoId: string;
+  workspaceId: string;
+  source: 'asr' | 'subtitle' | 'manual_note' | 'ocr';
+  modelName?: string;
+  language?: string;
+  segments: TranscriptSegment[];
+  rawText?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Chunk {
+  id: string;
+  videoId: string;
+  workspaceId: string;
+  contentType: 'transcript' | 'summary' | 'title' | 'note';
+  chunkIndex: number;
+  content: string;
+  contentHash: string;
+  startTimeMs?: number;
+  endTimeMs?: number;
+  createdAt: Date;
+}
+
+export interface VectorChunk {
+  id: string;
+  chunkId: string;
+  videoId: string;
+  workspaceId: string;
+  modelName: string;
+  dimension: number;
+  embedding: number[];
+  contentHash: string;
+  createdAt: Date;
+}
+
+export interface SearchHit {
+  chunkId: string;
+  videoId: string;
+  content: string;
+  contentType: string;
+  startTimeMs?: number;
+  endTimeMs?: number;
+  score: number;
+}
+
+export interface SearchFilter {
+  contentTypes?: string[];
+  videoIds?: string[];
+}
