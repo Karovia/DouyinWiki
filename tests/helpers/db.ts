@@ -234,6 +234,62 @@ export async function createTestDb(): Promise<DbClient> {
     ON entity_aliases(workspace_id, canonical_node_id)
   `);
 
+  // workspaces 表
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS workspaces (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      owner_id TEXT NOT NULL,
+      plan TEXT NOT NULL DEFAULT 'free',
+      settings TEXT,
+      created_at INTEGER DEFAULT (unixepoch()),
+      updated_at INTEGER DEFAULT (unixepoch())
+    )
+  `);
+
+  // workspace_members 表
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS workspace_members (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+      user_id TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'member',
+      invited_by TEXT,
+      joined_at INTEGER DEFAULT (unixepoch())
+    )
+  `);
+
+  await client.execute(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_members_unique
+    ON workspace_members(workspace_id, user_id)
+  `);
+
+  // usage_logs 表
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS usage_logs (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      resource_type TEXT NOT NULL,
+      operation TEXT NOT NULL,
+      input_tokens INTEGER,
+      output_tokens INTEGER,
+      estimated_cost REAL,
+      metadata TEXT,
+      created_at INTEGER DEFAULT (unixepoch())
+    )
+  `);
+
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_usage_logs_workspace
+    ON usage_logs(workspace_id, created_at)
+  `);
+
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_usage_logs_type
+    ON usage_logs(workspace_id, resource_type, created_at)
+  `);
+
   // 将临时目录路径附加到 testDb 上，便于后续清理
   (testDb as any).$testDbPath = dbPath;
   (testDb as any).$testDbDir = tmpDir;
@@ -254,6 +310,9 @@ export async function cleanTestDb(testDb: DbClient): Promise<void> {
   await client.execute(`DELETE FROM transcripts`);
   await client.execute(`DELETE FROM ingestion_jobs`);
   await client.execute(`DELETE FROM videos`);
+  await client.execute(`DELETE FROM usage_logs`);
+  await client.execute(`DELETE FROM workspace_members`);
+  await client.execute(`DELETE FROM workspaces`);
 }
 
 /**

@@ -169,3 +169,18 @@ export const workspaceMembers = sqliteTable('workspace_members', {
 }, (table) => [
   uniqueIndex('idx_workspace_members_unique').on(table.workspaceId, table.userId),
 ]);
+
+export const usageLogs = sqliteTable('usage_logs', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull(),
+  resourceType: text('resource_type').notNull(), // 'llm' | 'embedding' | 'asr'
+  operation: text('operation').notNull(),
+  inputTokens: integer('input_tokens'),
+  outputTokens: integer('output_tokens'),
+  estimatedCost: real('estimated_cost'),
+  metadata: text('metadata'), // JSON
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+}, (table) => [
+  index('idx_usage_logs_workspace').on(table.workspaceId, table.createdAt),
+  index('idx_usage_logs_type').on(table.workspaceId, table.resourceType, table.createdAt),
+]);

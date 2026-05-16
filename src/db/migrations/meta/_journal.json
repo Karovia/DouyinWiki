@@ -43,6 +43,13 @@
       "when": 1778933097874,
       "tag": "0005_outstanding_jackpot",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1778933228480,
+      "tag": "0006_odd_rumiko_fujikawa",
+      "breakpoints": true
     }
   ]
 }

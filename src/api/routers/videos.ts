@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import { router, authedProcedure, throwTrpcError } from '../trpc';
 import { VideoService } from '../../services/video-service';
+import { SQLiteVectorStore } from '../../infrastructure/vector-store';
 
-const videoService = new VideoService();
+const vectorStore = new SQLiteVectorStore();
+const videoService = new VideoService(vectorStore);
 
 export const videosRouter = router({
   list: authedProcedure
@@ -34,6 +36,20 @@ export const videosRouter = router({
           throw new Error('Video not found');
         }
         return video;
+      } catch (err) {
+        throwTrpcError(err);
+      }
+    }),
+
+  delete: authedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const result = await videoService.deleteVideo(input.id, ctx.workspaceId);
+        if (!result.deleted) {
+          throw new Error('Video not found');
+        }
+        return { success: true };
       } catch (err) {
         throwTrpcError(err);
       }
