@@ -2,34 +2,29 @@ import { eq } from 'drizzle-orm';
 import { db } from '../db';
 import { videos } from '../db/schema';
 import { DouyinConnector } from '../infrastructure/douyin-connector';
-import { LLMClient } from '../infrastructure/llm-client';
 import { JobQueue, JobResult } from './queue';
 import { ImportService } from '../services/import-service';
 import { AppError } from '../domain/errors';
+import { queue } from './queue';
 
 export function registerParseWorker(
-  queue: JobQueue,
+  queueInstance: JobQueue,
   connector: DouyinConnector,
-  llm: LLMClient,
   importService: ImportService
 ) {
-  queue.register('parse_metadata', async (job): Promise<JobResult> => {
+  queueInstance.register('parse_metadata', async (job): Promise<JobResult> => {
     const { jobId, videoId, shareUrl, workspaceId } = job.payload;
 
-    // 从 payload 中获取重试次数（由队列注入）
     const retryCount = (job.payload as unknown as Record<string, number>)._retryCount ?? 0;
 
     try {
-      // 1. 更新为 parsing_metadata 状态
       await importService.updateJobStatus(jobId, workspaceId, 'parsing_metadata', {
         step: 'parsing_metadata',
       });
 
-      // 2. 解析 URL 和元数据
       const parsed = await connector.parseUrl(shareUrl);
       const metadata = await connector.fetchMetadata(parsed);
 
-      // 3. 更新视频记录
       await db
         .update(videos)
         .set({
@@ -47,40 +42,30 @@ export function registerParseWorker(
         })
         .where(eq(videos.id, videoId));
 
-      // 4. 生成 AI 摘要
-      await importService.updateJobStatus(jobId, workspaceId, 'summarizing', {
-        step: 'summarizing',
+      await importService.updateJobStatus(jobId, workspaceId, 'fetching_content', {
+        step: 'fetching_content',
       });
 
-      const summaryText = `${metadata.title || ''}\n${metadata.description || ''}`;
-      const aiSummary = await llm.generateSummary(summaryText);
-      const aiTags = await llm.generateTags(summaryText);
-
-      await db
-        .update(videos)
-        .set({
-          aiSummary,
-          aiTags: JSON.stringify(aiTags),
-          status: 'completed',
-        })
-        .where(eq(videos.id, videoId));
-
-      // 5. 完成任务
-      await importService.updateJobStatus(jobId, workspaceId, 'completed', {
-        step: 'completed',
-        progress: 100,
+      // 入队 transcribe 任务
+      queue.enqueue({
+        id: `${jobId}-transcribe`,
+        type: 'transcribe',
+        payload: {
+          jobId,
+          videoId,
+          shareUrl,
+          workspaceId,
+        },
       });
 
       return { success: true };
     } catch (err) {
       console.error(`Parse worker failed for ${videoId}:`, err);
 
-      // 错误分类
       const { retryable, errorCode, errorMessage } = classifyError(err);
 
       try {
         if (retryable && retryCount < 3) {
-          // 可重试错误
           await importService.updateJobStatus(jobId, workspaceId, 'failed_retryable', {
             step: 'parsing_metadata',
             errorCode,
@@ -88,7 +73,6 @@ export function registerParseWorker(
           });
           return { success: false, retryable: true, error: err instanceof Error ? err : new Error(errorMessage) };
         } else {
-          // 不可重试错误或超过重试次数
           await importService.updateJobStatus(jobId, workspaceId, 'failed_terminal', {
             step: 'parsing_metadata',
             errorCode,
@@ -107,7 +91,6 @@ export function registerParseWorker(
           return { success: false, retryable: false, error: err instanceof Error ? err : new Error(errorMessage) };
         }
       } catch (updateErr) {
-        // 状态更新失败，返回可重试让队列处理
         console.error(`Failed to update job status for ${jobId}:`, updateErr);
         return { success: false, retryable: true, error: err instanceof Error ? err : new Error(String(err)) };
       }
@@ -115,15 +98,11 @@ export function registerParseWorker(
   });
 }
 
-/**
- * 错误分类：判断错误是否可重试
- */
 function classifyError(err: unknown): {
   retryable: boolean;
   errorCode: string;
   errorMessage: string;
 } {
-  // AppError 优先使用其自身的 retryable 标记
   if (err instanceof AppError) {
     return {
       retryable: err.retryable,
@@ -135,7 +114,6 @@ function classifyError(err: unknown): {
   if (err instanceof Error) {
     const message = err.message.toLowerCase();
 
-    // Terminal 错误（不可重试）
     if (
       message.includes('invalid url') ||
       message.includes('parse_invalid_url') ||
@@ -151,7 +129,6 @@ function classifyError(err: unknown): {
       };
     }
 
-    // Retryable 错误（网络超时、连接错误等）
     if (
       message.includes('timeout') ||
       message.includes('etimedout') ||
@@ -169,7 +146,6 @@ function classifyError(err: unknown): {
     }
   }
 
-  // 默认：未知错误视为可重试
   return {
     retryable: true,
     errorCode: 'PARSE_UNKNOWN',
