@@ -1,8 +1,15 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, count, sql } from 'drizzle-orm';
 import { db } from '../db';
 import { videos, ingestionJobs } from '../db/schema';
 import { DouyinConnector } from '../infrastructure/douyin-connector';
-import { ImportJob } from '../domain/types';
+import { ImportJob, JobStatus } from '../domain/types';
+import { AppError } from '../domain/errors';
+import {
+  canCancel,
+  canRetry,
+  getRetryState,
+  validateTransition,
+} from '../domain/state-machine';
 import { nanoid } from 'nanoid';
 
 function mapRowToImportJob(row: Record<string, unknown>): ImportJob {
@@ -103,5 +110,196 @@ export class ImportService {
       .limit(1);
 
     return result[0] ? mapRowToImportJob(result[0] as Record<string, unknown>) : null;
+  }
+
+  /**
+   * 列出任务（支持状态过滤、分页）
+   */
+  async listJobs(options: {
+    workspaceId: string;
+    status?: JobStatus;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ items: ImportJob[]; total: number }> {
+    const { workspaceId, status, limit = 20, offset = 0 } = options;
+
+    const whereConditions = [eq(ingestionJobs.workspaceId, workspaceId)];
+    if (status) {
+      whereConditions.push(eq(ingestionJobs.status, status));
+    }
+
+    const whereClause = and(...whereConditions);
+
+    // 查询总数
+    const countResult = await db
+      .select({ value: count() })
+      .from(ingestionJobs)
+      .where(whereClause);
+    const total = countResult[0]?.value ?? 0;
+
+    // 查询分页数据
+    const rows = await db
+      .select()
+      .from(ingestionJobs)
+      .where(whereClause)
+      .limit(limit)
+      .offset(offset)
+      .orderBy(sql`${ingestionJobs.createdAt} DESC`);
+
+    const items = rows.map((row) => mapRowToImportJob(row as Record<string, unknown>));
+
+    return { items, total };
+  }
+
+  /**
+   * 取消任务
+   */
+  async cancelJob(jobId: string, workspaceId: string): Promise<ImportJob> {
+    const job = await this.getJobStatus(jobId, workspaceId);
+    if (!job) {
+      throw new AppError('JOB_NOT_FOUND', 'Job not found', false, 404);
+    }
+
+    if (!canCancel(job.status)) {
+      throw new AppError(
+        'JOB_CANNOT_CANCEL',
+        `Cannot cancel job in status "${job.status}"`,
+        false,
+        409
+      );
+    }
+
+    validateTransition(job.status, 'cancelled');
+
+    await db
+      .update(ingestionJobs)
+      .set({
+        status: 'cancelled',
+        finishedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(ingestionJobs.id, jobId), eq(ingestionJobs.workspaceId, workspaceId)));
+
+    const updated = await this.getJobStatus(jobId, workspaceId);
+    if (!updated) {
+      throw new AppError('JOB_NOT_FOUND', 'Job not found after update', false, 404);
+    }
+    return updated;
+  }
+
+  /**
+   * 重试任务（从 failed_retryable 状态恢复）
+   */
+  async retryJob(jobId: string, workspaceId: string): Promise<ImportJob> {
+    const job = await this.getJobStatus(jobId, workspaceId);
+    if (!job) {
+      throw new AppError('JOB_NOT_FOUND', 'Job not found', false, 404);
+    }
+
+    if (!canRetry(job.status)) {
+      throw new AppError(
+        'JOB_CANNOT_RETRY',
+        `Cannot retry job in status "${job.status}"`,
+        false,
+        409
+      );
+    }
+
+    const retryState = getRetryState(job.step);
+    if (!retryState) {
+      throw new AppError(
+        'JOB_INVALID_RETRY_STATE',
+        'Cannot determine retry state',
+        false,
+        500
+      );
+    }
+
+    validateTransition(job.status, retryState);
+
+    await db
+      .update(ingestionJobs)
+      .set({
+        status: retryState,
+        retryCount: 0,
+        errorCode: null,
+        errorMessage: null,
+        nextRetryAt: null,
+        lastErrorAt: null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(ingestionJobs.id, jobId), eq(ingestionJobs.workspaceId, workspaceId)));
+
+    const updated = await this.getJobStatus(jobId, workspaceId);
+    if (!updated) {
+      throw new AppError('JOB_NOT_FOUND', 'Job not found after update', false, 404);
+    }
+    return updated;
+  }
+
+  /**
+   * 更新任务状态（供 Worker 调用）
+   */
+  async updateJobStatus(
+    jobId: string,
+    workspaceId: string,
+    status: JobStatus,
+    options?: {
+      step?: string;
+      progress?: number;
+      errorCode?: string;
+      errorMessage?: string;
+      nextRetryAt?: Date;
+    }
+  ): Promise<ImportJob> {
+    const job = await this.getJobStatus(jobId, workspaceId);
+    if (!job) {
+      throw new AppError('JOB_NOT_FOUND', 'Job not found', false, 404);
+    }
+
+    validateTransition(job.status, status);
+
+    const updateData: Record<string, unknown> = {
+      status,
+      updatedAt: new Date(),
+    };
+
+    if (options?.step !== undefined) {
+      updateData.step = options.step;
+    }
+    if (options?.progress !== undefined) {
+      updateData.progress = options.progress;
+    }
+    if (options?.errorCode !== undefined) {
+      updateData.errorCode = options.errorCode;
+    }
+    if (options?.errorMessage !== undefined) {
+      updateData.errorMessage = options.errorMessage;
+    }
+    if (options?.nextRetryAt !== undefined) {
+      updateData.nextRetryAt = options.nextRetryAt;
+    }
+
+    // 如果进入终止状态，记录完成时间
+    if (status === 'completed' || status === 'partial_completed' || status === 'failed_terminal' || status === 'cancelled') {
+      updateData.finishedAt = new Date();
+    }
+
+    // 如果进入失败状态，记录错误时间和重试次数
+    if (status === 'failed_retryable' || status === 'failed_terminal') {
+      updateData.lastErrorAt = new Date();
+      updateData.retryCount = (job.retryCount ?? 0) + 1;
+    }
+
+    await db
+      .update(ingestionJobs)
+      .set(updateData)
+      .where(and(eq(ingestionJobs.id, jobId), eq(ingestionJobs.workspaceId, workspaceId)));
+
+    const updated = await this.getJobStatus(jobId, workspaceId);
+    if (!updated) {
+      throw new AppError('JOB_NOT_FOUND', 'Job not found after update', false, 404);
+    }
+    return updated;
   }
 }
