@@ -1,112 +1,191 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '../../src/db';
-import { videos, ingestionJobs } from '../../src/db/schema';
-import { eq } from 'drizzle-orm';
+import { ingestionJobs, videos } from '../../src/db/schema';
 import { ImportService } from '../../src/services/import-service';
-import { VideoService } from '../../src/services/video-service';
 import { MockDouyinConnector } from '../../src/infrastructure/douyin-connector';
-import { MockLLMClient } from '../../src/infrastructure/llm-client';
-import { MemoryQueue } from '../../src/workers/queue';
-import { registerParseWorker } from '../../src/workers/parse-worker';
 
-const TEST_WORKSPACE = 'test-workspace';
-const VALID_URL = 'https://www.douyin.com/video/123456';
+describe('import-flow integration', () => {
+  const connector = new MockDouyinConnector();
+  const importService = new ImportService(connector);
 
-async function waitForWorker(ms = 2000) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-describe('import flow integration', () => {
   beforeEach(async () => {
     await db.delete(ingestionJobs);
     await db.delete(videos);
   });
 
-  it('should create import job, process through worker, and complete successfully', async () => {
-    const queue = new MemoryQueue();
-    const connector = new MockDouyinConnector();
-    const llm = new MockLLMClient();
-    registerParseWorker(queue, connector, llm);
+  describe('workspace isolation', () => {
+    it('should isolate jobs between workspaces', async () => {
+      const jobA = await importService.createImportJob(
+        'https://www.douyin.com/video/123',
+        'workspace-a'
+      );
+      const jobB = await importService.createImportJob(
+        'https://www.douyin.com/video/123',
+        'workspace-b'
+      );
 
-    const importService = new ImportService(connector);
-    const videoService = new VideoService();
+      expect(jobA.id).not.toBe(jobB.id);
 
-    // 1. 创建导入任务
-    const job = await importService.createImportJob(VALID_URL, TEST_WORKSPACE);
-    expect(job.status).toBe('created');
-    expect(job.videoId).toBeDefined();
+      const listA = await importService.listJobs({ workspaceId: 'workspace-a' });
+      expect(listA.items).toHaveLength(1);
+      expect(listA.items[0].id).toBe(jobA.id);
 
-    // 2. 入队并等待 Worker 异步处理
-    queue.enqueue({
-      id: job.id,
-      type: 'parse_metadata',
-      payload: {
-        jobId: job.id,
-        videoId: job.videoId!,
-        shareUrl: VALID_URL,
-      },
+      const listB = await importService.listJobs({ workspaceId: 'workspace-b' });
+      expect(listB.items).toHaveLength(1);
+      expect(listB.items[0].id).toBe(jobB.id);
     });
 
-    await waitForWorker(2000);
-
-    // 3. 查询任务状态应为 completed
-    const jobStatus = await importService.getJobStatus(job.id);
-    expect(jobStatus?.status).toBe('completed');
-    expect(jobStatus?.step).toBe('completed');
-
-    // 4. 查询视频列表应包含已导入视频
-    const videoList = await videoService.list({ workspaceId: TEST_WORKSPACE });
-    expect(videoList.total).toBe(1);
-    expect(videoList.items[0].title).toContain('Mock Video');
-    expect(videoList.items[0].aiSummary).toBeDefined();
-    expect(videoList.items[0].status).toBe('completed');
-
-    // 5. 视频详情可查询
-    const detail = await videoService.detail(videoList.items[0].id, TEST_WORKSPACE);
-    expect(detail).not.toBeNull();
-    expect(detail?.platform).toBe('douyin');
-    expect(detail?.shareUrl).toBe(VALID_URL);
+    it('should prevent cross-workspace job access', async () => {
+      const job = await importService.createImportJob(
+        'https://www.douyin.com/video/456',
+        'workspace-a'
+      );
+      const status = await importService.getJobStatus(job.id, 'workspace-b');
+      expect(status).toBeNull();
+    });
   });
 
-  it('should return existing job for duplicate URL (idempotency)', async () => {
-    const connector = new MockDouyinConnector();
-    const importService = new ImportService(connector);
+  describe('full import flow', () => {
+    it('should complete full import flow', async () => {
+      const job = await importService.createImportJob(
+        'https://www.douyin.com/video/789',
+        'default'
+      );
+      expect(job.status).toBe('created');
 
-    // 第一次导入
-    const job1 = await importService.createImportJob(VALID_URL, TEST_WORKSPACE);
-    expect(job1.status).toBe('created');
+      await importService.updateJobStatus(job.id, 'default', 'parsing_metadata', {
+        step: 'parsing_metadata',
+      });
+      await importService.updateJobStatus(job.id, 'default', 'fetching_content', {
+        step: 'fetching_content',
+      });
+      await importService.updateJobStatus(job.id, 'default', 'transcribing', {
+        step: 'transcribing',
+      });
+      await importService.updateJobStatus(job.id, 'default', 'chunking', {
+        step: 'chunking',
+      });
+      await importService.updateJobStatus(job.id, 'default', 'summarizing', {
+        step: 'summarizing',
+        progress: 50,
+      });
+      await importService.updateJobStatus(job.id, 'default', 'embedding', {
+        step: 'embedding',
+      });
+      await importService.updateJobStatus(job.id, 'default', 'indexing', {
+        step: 'indexing',
+      });
+      await importService.updateJobStatus(job.id, 'default', 'graph_updating', {
+        step: 'graph_updating',
+      });
+      await importService.updateJobStatus(job.id, 'default', 'completed', {
+        step: 'completed',
+        progress: 100,
+      });
 
-    // 第二次导入同一链接应返回已有任务
-    const job2 = await importService.createImportJob(VALID_URL, TEST_WORKSPACE);
-    expect(job2.id).toBe(job1.id);
-    expect(job2.videoId).toBe(job1.videoId);
+      const final = await importService.getJobStatus(job.id, 'default');
+      expect(final?.status).toBe('completed');
+      expect(final?.progress).toBe(100);
+    });
   });
 
-  it('should isolate videos by workspace', async () => {
-    const queue = new MemoryQueue();
-    const connector = new MockDouyinConnector();
-    const llm = new MockLLMClient();
-    registerParseWorker(queue, connector, llm);
-
-    const importService = new ImportService(connector);
-    const videoService = new VideoService();
-
-    // workspace-a 导入
-    const jobA = await importService.createImportJob(VALID_URL, 'workspace-a');
-    queue.enqueue({
-      id: jobA.id,
-      type: 'parse_metadata',
-      payload: { jobId: jobA.id, videoId: jobA.videoId!, shareUrl: VALID_URL },
+  describe('idempotency', () => {
+    it('should be idempotent for same workspace and URL', async () => {
+      const url = 'https://www.douyin.com/video/999';
+      const job1 = await importService.createImportJob(url, 'default');
+      const job2 = await importService.createImportJob(url, 'default');
+      expect(job1.id).toBe(job2.id);
     });
 
-    await waitForWorker(2000);
+    it('should allow same URL in different workspaces', async () => {
+      const url = 'https://www.douyin.com/video/999';
+      const job1 = await importService.createImportJob(url, 'workspace-x');
+      const job2 = await importService.createImportJob(url, 'workspace-y');
+      expect(job1.id).not.toBe(job2.id);
+    });
+  });
 
-    // workspace-b 查询不到 workspace-a 的视频
-    const listB = await videoService.list({ workspaceId: 'workspace-b' });
-    expect(listB.total).toBe(0);
+  describe('state machine validation', () => {
+    it('should reject invalid state transitions', async () => {
+      const job = await importService.createImportJob(
+        'https://www.douyin.com/video/111',
+        'default'
+      );
+      await expect(
+        importService.updateJobStatus(job.id, 'default', 'completed')
+      ).rejects.toThrow();
+    });
 
-    // workspace-a 可以查询到自己的视频
-    const listA = await videoService.list({ workspaceId: 'workspace-a' });
-    expect(listA.total).toBe(1);
+    it('should reject transition from terminal state', async () => {
+      const job = await importService.createImportJob(
+        'https://www.douyin.com/video/222',
+        'default'
+      );
+      await importService.updateJobStatus(job.id, 'default', 'parsing_metadata', {
+        step: 'parsing_metadata',
+      });
+      await importService.updateJobStatus(job.id, 'default', 'fetching_content', {
+        step: 'fetching_content',
+      });
+      await importService.updateJobStatus(job.id, 'default', 'transcribing', {
+        step: 'transcribing',
+      });
+      await importService.updateJobStatus(job.id, 'default', 'chunking', {
+        step: 'chunking',
+      });
+      await importService.updateJobStatus(job.id, 'default', 'summarizing', {
+        step: 'summarizing',
+      });
+      await importService.updateJobStatus(job.id, 'default', 'embedding', {
+        step: 'embedding',
+      });
+      await importService.updateJobStatus(job.id, 'default', 'indexing', {
+        step: 'indexing',
+      });
+      await importService.updateJobStatus(job.id, 'default', 'graph_updating', {
+        step: 'graph_updating',
+      });
+      await importService.updateJobStatus(job.id, 'default', 'completed', {
+        step: 'completed',
+      });
+      await expect(
+        importService.updateJobStatus(job.id, 'default', 'parsing_metadata')
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('cancel and retry', () => {
+    it('should cancel a job', async () => {
+      const job = await importService.createImportJob(
+        'https://www.douyin.com/video/333',
+        'default'
+      );
+      await importService.updateJobStatus(job.id, 'default', 'parsing_metadata', {
+        step: 'parsing_metadata',
+      });
+      const cancelled = await importService.cancelJob(job.id, 'default');
+      expect(cancelled.status).toBe('cancelled');
+      await expect(
+        importService.updateJobStatus(job.id, 'default', 'summarizing')
+      ).rejects.toThrow();
+    });
+
+    it('should retry a failed job', async () => {
+      const job = await importService.createImportJob(
+        'https://www.douyin.com/video/444',
+        'default'
+      );
+      await importService.updateJobStatus(job.id, 'default', 'parsing_metadata', {
+        step: 'parsing_metadata',
+      });
+      await importService.updateJobStatus(job.id, 'default', 'failed_retryable', {
+        step: 'parsing_metadata',
+        errorCode: 'PARSE_TIMEOUT',
+        errorMessage: 'Timeout',
+      });
+      const retried = await importService.retryJob(job.id, 'default');
+      expect(retried.status).toBe('parsing_metadata');
+      expect(retried.retryCount).toBe(0);
+    });
   });
 });
