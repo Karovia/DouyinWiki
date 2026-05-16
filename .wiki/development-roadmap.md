@@ -152,6 +152,15 @@ cancelled
 | Phase 5：图谱离线化 | Week 8 | TopK 边生成、局部图谱、聚类展示 | 1000 条视频内图谱页面流畅可用 |
 | Phase 6：多用户与运营化 | Week 9-10 | Workspace、权限、限流、成本统计、删除能力 | 多用户数据隔离通过测试 |
 
+### Phase 6 总体进度
+
+| Task | 模块 | 状态 | 完成时间 | 备注 |
+|------|------|:----:|:--------:|------|
+| Task 9 | Workspace + 成员表 + WorkspaceService | ✅ | 2026-05-16 | workspaces, workspace_members |
+| Task 10 | 限流器 + 单元测试 | ✅ | 2026-05-16 | MemoryRateLimiter |
+| Task 11 | 成本统计 | ✅ | 2026-05-16 | usage_logs, CostTracker |
+| Task 12 | 级联删除 | ✅ | 2026-05-16 | deleteVideo + 向量/图谱/关联数据清理 |
+
 ### Phase 3 总体进度
 
 | Task | 模块 | 状态 | 完成时间 | 备注 |
