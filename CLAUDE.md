@@ -6,9 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 以下 `.wiki` 目录下的文件包含项目的详细规范，执行任务前应先查阅相关文件：
 
-- `.wiki/tech-stack.md` — 技术栈选型、分层架构、核心 API 定义、数据存储方案、外部服务依赖、检索策略
-- `.wiki/coding-standards.md` — 架构分层规范、接口抽象规范、命名规范、幂等设计、状态机规范、多租户隔离规范、错误码与日志规范
-- `.wiki/development-roadmap.md` — 项目定位与架构原则、核心链路、异步入库流水线、开发里程碑与验收指标
+| 文件 | 查看时机 | 内容说明 |
+|------|----------|----------|
+| `.wiki/tech-stack.md` | 技术选型、架构设计、存储方案讨论时 | 技术栈选型、分层架构、核心 API 定义、数据存储方案、外部服务依赖、检索策略 |
+| `.wiki/coding-standards.md` | 编写/审查代码时 | 架构分层规范、接口抽象规范、命名规范、幂等设计、状态机规范、多租户隔离规范、错误码与日志规范 |
+| `.wiki/development-roadmap.md` | 规划开发里程碑、评估进度时 | 项目定位与架构原则、核心链路、异步入库流水线、开发里程碑与验收指标 |
+| `.wiki/frontend-design.md` | 开发前端页面、组件、路由时 | 前端页面结构、组件设计、路由规划、状态管理 |
+| `.wiki/knowledge-graph.md` | 实现或修改知识图谱相关功能时 | 知识图谱数据模型、边生成算法、实体抽取、存储查询、RAG 融合、前端可视化、GraphWorker 流水线 |
 
 ## 项目定位
 
@@ -132,3 +136,59 @@ cancelled
 
 - 摘要和 Embedding 使用 `content_hash` 缓存，内容未变更禁止重复调用 LLM/Embedding
 - 导入前检查 `normalized_url_hash`，同一 workspace 禁止重复导入
+
+## 代码提交与协作规范
+
+### 强制推送规则
+
+- **每次完成代码变更后，必须推送到 GitHub**
+- 遇到问题或发现 bug，必须在 GitHub 提交 issue 进行跟踪
+- 远程仓库链接：https://github.com/Karovia/DouyinWiki
+
+### 提交流程
+
+```
+完成代码变更 → git add → git commit → git push origin main
+                  ↓
+            遇到问题 → 在 GitHub 提交 issue
+```
+
+### Issue 规范
+
+- 问题描述清晰，包含复现步骤
+- 标注相关标签（bug / feature / refactor / question）
+- 关联相关代码文件或 commit
+
+## 进度跟踪规范
+
+### 强制更新规则
+
+- **每次完成一个 Task（模块）或一组相关代码变更后，必须更新 `.wiki/development-roadmap.md` 中的进度表格**
+- 在 Task 内部的 Step 列表中同步打勾（`- [ ]` → `- [x]`）
+- 填写完成时间（格式：`YYYY-MM-DD`）
+
+### 状态标记
+
+| 符号 | 含义 | 使用时机 |
+|:----:|------|----------|
+| ⬜ | 待完成 | 尚未开始该 Task |
+| 🔄 | 进行中 | 该 Task 正在开发，部分 Step 已完成 |
+| ✅ | 已完成 | 该 Task 所有 Step 完成，已验证通过 |
+
+### 更新流程
+
+```
+完成代码开发 → 本地测试验证 → git commit
+        ↓
+  更新 development-roadmap.md
+    - 修改总体进度表格状态和时间
+    - 在对应 Task 的 Step 后打勾
+        ↓
+  git add .wiki/development-roadmap.md
+  git commit -m "docs: update progress for Task X"
+  git push origin main
+```
+
+### 进度表格位置
+
+Phase 1 总体进度表格位于 `.wiki/development-roadmap.md` 中 `Phase 1 详细实施计划` 章节的开头。每次更新时同步修改表格状态和 Task 内 Step 的复选框。

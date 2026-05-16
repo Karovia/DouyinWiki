@@ -26,7 +26,12 @@
       "Bash(taskkill /F /PID 8888)",
       "Bash(kill -9 8888)",
       "Bash(cmd *)",
-      "Bash(powershell *)"
+      "Bash(powershell *)",
+      "Bash(git check-ignore *)",
+      "Bash(git worktree *)",
+      "Bash(git push *)",
+      "Bash(git remote *)",
+      "Bash(npm run *)"
     ]
   },
   "hooks": {
