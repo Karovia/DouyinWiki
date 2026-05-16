@@ -152,6 +152,23 @@ cancelled
 | Phase 5：图谱离线化 | Week 8 | TopK 边生成、局部图谱、聚类展示 | 1000 条视频内图谱页面流畅可用 |
 | Phase 6：多用户与运营化 | Week 9-10 | Workspace、权限、限流、成本统计、删除能力 | 多用户数据隔离通过测试 |
 
+### Phase 3 总体进度
+
+| Task | 模块 | 状态 | 完成时间 | 备注 |
+|------|------|:----:|:--------:|------|
+| Task 1 | 数据库 Schema 扩展 | ✅ | 2026-05-16 | transcripts, chunks, embeddings |
+| Task 2 | 领域类型扩展 | ✅ | 2026-05-16 | Transcript, Chunk, VectorChunk, SearchHit |
+| Task 3 | 基础设施接口 | ✅ | 2026-05-16 | ASRClient, EmbeddingClient, VectorStore |
+| Task 4 | VectorStore 单元测试 | ✅ | 2026-05-16 | |
+| Task 5 | QueueJob 类型扩展 | ✅ | 2026-05-16 | 支持多阶段流水线 |
+| Task 6 | parse-worker 改造 + ASR Worker | ✅ | 2026-05-16 | |
+| Task 7 | Chunk Worker + Summary Worker | ✅ | 2026-05-16 | |
+| Task 8 | Embed Worker + Index Worker | ✅ | 2026-05-16 | |
+| Task 9 | SearchService + search.semantic API | ✅ | 2026-05-16 | |
+| Task 10 | 注册全部 Worker 与 API | ✅ | 2026-05-16 | |
+| Task 11 | E2E 集成测试 | ✅ | 2026-05-16 | 完整流水线 + 语义搜索 |
+| Task 12 | 更新开发路线图 | ✅ | 2026-05-16 | |
+
 ---
 
 ## Phase 1 详细实施计划
