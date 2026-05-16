@@ -153,6 +153,14 @@ export async function createTestDb(): Promise<DbClient> {
     ON embeddings(chunk_id, model_name)
   `);
 
+  // FTS5 virtual table
+  await client.execute(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS fts_chunks USING fts5(
+      content,
+      tokenize='porter unicode61'
+    )
+  `);
+
   // 将临时目录路径附加到 testDb 上，便于后续清理
   (testDb as any).$testDbPath = dbPath;
   (testDb as any).$testDbDir = tmpDir;

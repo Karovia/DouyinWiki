@@ -94,3 +94,13 @@ export const embeddings = sqliteTable('embeddings', {
 }, (table) => [
   uniqueIndex('idx_embeddings_chunk_model').on(table.chunkId, table.modelName),
 ]);
+
+// FTS5 full-text search virtual table (for BM25 retrieval)
+// Note: FTS5 virtual tables need raw SQL for creation; this is only for type inference.
+export const ftsChunks = sqliteTable('fts_chunks', {
+  chunkId: text('chunk_id').notNull(),
+  videoId: text('video_id').notNull(),
+  workspaceId: text('workspace_id').notNull(),
+  content: text('content').notNull(),
+  contentType: text('content_type').notNull(),
+});
