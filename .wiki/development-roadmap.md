@@ -1794,6 +1794,12 @@ git commit -m "feat(phase1): complete MVP with E2E import flow"
 |------|------|:----:|:--------:|------|
 | Task 1 | FTS5 虚拟表与同步触发器 | ✅ | 2026-05-16 | `fts_chunks` + insert/delete/update triggers |
 | Task 2 | BM25Search 接口与实现 | ✅ | 2026-05-16 | `SQLiteBM25Search` + 单元测试 |
+| Task 3 | RRF 混合融合算法 | ✅ | 2026-05-16 | `reciprocalRankFusion` + `normalizeScores` |
+| Task 4 | 标签过滤与视频分组 | ✅ | 2026-05-16 | `aiTags`, `tags` filter + `groupByVideo` |
+| Task 5 | Reranker | ✅ | 2026-05-16 | `SimpleReranker` |
+| Task 6 | search.hybrid API | ✅ | 2026-05-16 | `HybridSearchService` + tRPC router |
+| Task 7 | 前端搜索页面 | ✅ | 2026-05-16 | 分组展示 |
+| Task 8 | E2E 集成测试 | ✅ | 2026-05-16 | `tests/integration/hybrid-search-e2e.test.ts` |
 
 ---
 
