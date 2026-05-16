@@ -4,3 +4,4 @@ data/
 .env
 server.log
 package-lock.json
+.worktrees/
