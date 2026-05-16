@@ -8,8 +8,12 @@ export default defineConfig({
       '**/.claude/**',
       '**/.worktrees/**',
     ],
-    // 集成测试涉及数据库写操作，串行执行避免文件锁冲突
+    // 集成测试涉及数据库写操作，使用单线程避免文件锁冲突
     pool: 'forks',
-    maxForks: 1,
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
   },
 });
