@@ -1,36 +1,36 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../db';
-import { videos, ingestionJobs } from '../db/schema';
+import { videos } from '../db/schema';
 import { DouyinConnector } from '../infrastructure/douyin-connector';
 import { LLMClient } from '../infrastructure/llm-client';
-import { MemoryQueue } from './queue';
+import { JobQueue, JobResult } from './queue';
+import { ImportService } from '../services/import-service';
+import { AppError } from '../domain/errors';
 
 export function registerParseWorker(
-  queue: MemoryQueue,
+  queue: JobQueue,
   connector: DouyinConnector,
-  llm: LLMClient
+  llm: LLMClient,
+  importService: ImportService
 ) {
-  queue.register('parse_metadata', async (job) => {
+  queue.register('parse_metadata', async (job): Promise<JobResult> => {
     const { jobId, videoId, shareUrl } = job.payload;
+    const workspaceId = 'default'; // Worker 内部使用默认 workspace，实际生产环境应从 job payload 传递
 
-    // 1. 读取 job 状态
-    const jobRow = await db
-      .select()
-      .from(ingestionJobs)
-      .where(eq(ingestionJobs.id, jobId))
-      .limit(1);
-
-    if (!jobRow[0]) return;
-
-    // 2. 更新为 parsing_metadata
-    await updateJobStatus(jobId, 'parsing_metadata');
+    // 从 payload 中获取重试次数（由队列注入）
+    const retryCount = (job.payload as unknown as Record<string, number>)._retryCount ?? 0;
 
     try {
-      // 3. 解析 URL 和元数据
+      // 1. 更新为 parsing_metadata 状态
+      await importService.updateJobStatus(jobId, workspaceId, 'parsing_metadata', {
+        step: 'parsing_metadata',
+      });
+
+      // 2. 解析 URL 和元数据
       const parsed = await connector.parseUrl(shareUrl);
       const metadata = await connector.fetchMetadata(parsed);
 
-      // 4. 更新视频记录
+      // 3. 更新视频记录
       await db
         .update(videos)
         .set({
@@ -48,8 +48,11 @@ export function registerParseWorker(
         })
         .where(eq(videos.id, videoId));
 
-      // 5. 生成 AI 摘要（Phase 1 简化版）
-      await updateJobStatus(jobId, 'summarizing');
+      // 4. 生成 AI 摘要
+      await importService.updateJobStatus(jobId, workspaceId, 'summarizing', {
+        step: 'summarizing',
+      });
+
       const summaryText = `${metadata.title || ''}\n${metadata.description || ''}`;
       const aiSummary = await llm.generateSummary(summaryText);
       const aiTags = await llm.generateTags(summaryText);
@@ -63,35 +66,114 @@ export function registerParseWorker(
         })
         .where(eq(videos.id, videoId));
 
-      // 6. 完成任务
-      await updateJobStatus(jobId, 'completed');
+      // 5. 完成任务
+      await importService.updateJobStatus(jobId, workspaceId, 'completed', {
+        step: 'completed',
+        progress: 100,
+      });
+
+      return { success: true };
     } catch (err) {
       console.error(`Parse worker failed for ${videoId}:`, err);
-      await db
-        .update(ingestionJobs)
-        .set({
-          status: 'failed_terminal',
-          errorCode: err instanceof Error ? 'PARSE_FAILED' : 'UNKNOWN',
-          errorMessage: err instanceof Error ? err.message : 'Unknown error',
-          finishedAt: new Date(),
-        })
-        .where(eq(ingestionJobs.id, jobId));
 
-      await db
-        .update(videos)
-        .set({
-          status: 'failed',
-          errorCode: 'PARSE_FAILED',
-          errorMessage: err instanceof Error ? err.message : 'Unknown error',
-        })
-        .where(eq(videos.id, videoId));
+      // 错误分类
+      const { retryable, errorCode, errorMessage } = classifyError(err);
+
+      try {
+        if (retryable && retryCount < 3) {
+          // 可重试错误
+          await importService.updateJobStatus(jobId, workspaceId, 'failed_retryable', {
+            step: 'parsing_metadata',
+            errorCode,
+            errorMessage,
+          });
+          return { success: false, retryable: true, error: err instanceof Error ? err : new Error(errorMessage) };
+        } else {
+          // 不可重试错误或超过重试次数
+          await importService.updateJobStatus(jobId, workspaceId, 'failed_terminal', {
+            step: 'parsing_metadata',
+            errorCode,
+            errorMessage: retryable ? `${errorMessage} (max retries exceeded)` : errorMessage,
+          });
+
+          await db
+            .update(videos)
+            .set({
+              status: 'failed',
+              errorCode,
+              errorMessage: retryable ? `${errorMessage} (max retries exceeded)` : errorMessage,
+            })
+            .where(eq(videos.id, videoId));
+
+          return { success: false, retryable: false, error: err instanceof Error ? err : new Error(errorMessage) };
+        }
+      } catch (updateErr) {
+        // 状态更新失败，返回可重试让队列处理
+        console.error(`Failed to update job status for ${jobId}:`, updateErr);
+        return { success: false, retryable: true, error: err instanceof Error ? err : new Error(String(err)) };
+      }
     }
   });
 }
 
-async function updateJobStatus(jobId: string, status: string) {
-  await db
-    .update(ingestionJobs)
-    .set({ status, step: status, updatedAt: new Date() })
-    .where(eq(ingestionJobs.id, jobId));
+/**
+ * 错误分类：判断错误是否可重试
+ */
+function classifyError(err: unknown): {
+  retryable: boolean;
+  errorCode: string;
+  errorMessage: string;
+} {
+  // AppError 优先使用其自身的 retryable 标记
+  if (err instanceof AppError) {
+    return {
+      retryable: err.retryable,
+      errorCode: err.code,
+      errorMessage: err.message,
+    };
+  }
+
+  if (err instanceof Error) {
+    const message = err.message.toLowerCase();
+
+    // Terminal 错误（不可重试）
+    if (
+      message.includes('invalid url') ||
+      message.includes('parse_invalid_url') ||
+      message.includes('unsupported platform') ||
+      message.includes('parse_platform_unsupported') ||
+      message.includes('link expired') ||
+      message.includes('parse_link_expired')
+    ) {
+      return {
+        retryable: false,
+        errorCode: 'PARSE_INVALID_INPUT',
+        errorMessage: err.message,
+      };
+    }
+
+    // Retryable 错误（网络超时、连接错误等）
+    if (
+      message.includes('timeout') ||
+      message.includes('etimedout') ||
+      message.includes('econnrefused') ||
+      message.includes('enotfound') ||
+      message.includes('network') ||
+      message.includes('rate limit') ||
+      message.includes('too many requests')
+    ) {
+      return {
+        retryable: true,
+        errorCode: 'PARSE_NETWORK_ERROR',
+        errorMessage: err.message,
+      };
+    }
+  }
+
+  // 默认：未知错误视为可重试
+  return {
+    retryable: true,
+    errorCode: 'PARSE_UNKNOWN',
+    errorMessage: err instanceof Error ? err.message : 'Unknown error',
+  };
 }

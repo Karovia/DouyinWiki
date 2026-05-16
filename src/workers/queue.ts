@@ -8,44 +8,212 @@ export interface QueueJob {
   };
 }
 
-type JobHandler = (job: QueueJob) => Promise<void>;
+export interface JobResult {
+  success: boolean;
+  retryable?: boolean;
+  error?: Error;
+}
 
-export class MemoryQueue {
+type JobHandler = (job: QueueJob) => Promise<JobResult>;
+
+interface RetryEntry {
+  job: QueueJob;
+  retryCount: number;
+  nextRetryAt: Date;
+}
+
+export class JobQueue {
+  // 配置
+  private maxConcurrency: number;
+  private baseRetryDelayMs: number;
+  private maxRetries: number;
+  private jobTimeoutMs: number;
+
+  // 状态
   private jobs: QueueJob[] = [];
+  private retryJobs: RetryEntry[] = [];
   private handlers: Map<string, JobHandler> = new Map();
-  private running = false;
+  private runningCount = 0;
+  private isRunning = false;
+  private retryTimer: NodeJS.Timeout | null = null;
+  private stopped = false;
 
-  register(type: string, handler: JobHandler) {
+  constructor(options?: {
+    maxConcurrency?: number;
+    baseRetryDelayMs?: number;
+    maxRetries?: number;
+    jobTimeoutMs?: number;
+  }) {
+    this.maxConcurrency = options?.maxConcurrency ?? 3;
+    this.baseRetryDelayMs = options?.baseRetryDelayMs ?? 5000;
+    this.maxRetries = options?.maxRetries ?? 3;
+    this.jobTimeoutMs = options?.jobTimeoutMs ?? 30000;
+
+    // 优雅处理进程退出
+    this.setupGracefulShutdown();
+  }
+
+  register(type: string, handler: JobHandler): void {
     this.handlers.set(type, handler);
   }
 
-  enqueue(job: QueueJob) {
+  enqueue(job: QueueJob): void {
+    if (this.stopped) {
+      console.warn(`Queue is stopped, ignoring job ${job.id}`);
+      return;
+    }
     this.jobs.push(job);
-    if (!this.running) {
+    if (!this.isRunning) {
       this.processLoop();
     }
   }
 
-  private async processLoop() {
-    this.running = true;
-    while (this.jobs.length > 0) {
-      const job = this.jobs.shift();
-      if (!job) continue;
+  private async processLoop(): Promise<void> {
+    if (this.isRunning) return;
+    this.isRunning = true;
 
-      const handler = this.handlers.get(job.type);
-      if (handler) {
-        try {
-          await handler(job);
-        } catch (err) {
-          console.error(`Job ${job.id} failed:`, err);
-        }
+    while ((this.jobs.length > 0 || this.retryJobs.length > 0) && !this.stopped) {
+      // 优先处理重试队列中到期的任务
+      this.processRetries();
+
+      // 并发控制
+      while (this.runningCount < this.maxConcurrency && this.jobs.length > 0 && !this.stopped) {
+        const job = this.jobs.shift();
+        if (!job) continue;
+
+        this.runningCount++;
+        // 不 await，让任务并行执行
+        this.processJob(job).finally(() => {
+          this.runningCount--;
+        });
       }
 
-      // 简单节流，避免 CPU 占满
-      await new Promise((r) => setTimeout(r, 100));
+      // 短暂休眠，避免 CPU 空转
+      if (this.jobs.length === 0 && this.runningCount > 0) {
+        await new Promise((r) => setTimeout(r, 50));
+      } else if (this.jobs.length === 0 && this.retryJobs.length > 0) {
+        // 等待下一个重试任务到期
+        await new Promise((r) => setTimeout(r, 100));
+      }
     }
-    this.running = false;
+
+    this.isRunning = false;
+  }
+
+  private async processJob(job: QueueJob): Promise<void> {
+    const handler = this.handlers.get(job.type);
+    if (!handler) {
+      console.error(`No handler registered for job type: ${job.type}`);
+      return;
+    }
+
+    try {
+      const result = await this.runWithTimeout(
+        handler(job),
+        this.jobTimeoutMs
+      );
+
+      if (!result.success) {
+        if (result.retryable) {
+          this.scheduleRetry(job, 0);
+        } else {
+          console.error(`Job ${job.id} failed (terminal):`, result.error);
+        }
+      }
+    } catch (err) {
+      console.error(`Job ${job.id} threw unexpected error:`, err);
+      this.scheduleRetry(job, 0);
+    }
+  }
+
+  private scheduleRetry(job: QueueJob, retryCount: number): void {
+    if (retryCount >= this.maxRetries) {
+      console.error(`Job ${job.id} exceeded max retries (${this.maxRetries}), giving up`);
+      return;
+    }
+
+    const delay = this.baseRetryDelayMs * Math.pow(2, retryCount);
+    const nextRetryAt = new Date(Date.now() + delay);
+
+    this.retryJobs.push({
+      job,
+      retryCount: retryCount + 1,
+      nextRetryAt,
+    });
+
+    console.log(`Job ${job.id} scheduled for retry ${retryCount + 1}/${this.maxRetries} at ${nextRetryAt.toISOString()}`);
+
+    // 启动重试定时器检查
+    if (!this.retryTimer) {
+      this.retryTimer = setInterval(() => this.processRetries(), 1000);
+    }
+
+    // 如果主循环没在运行，尝试启动
+    if (!this.isRunning && !this.stopped) {
+      this.processLoop();
+    }
+  }
+
+  private processRetries(): void {
+    const now = new Date();
+    const readyRetries: RetryEntry[] = [];
+    const remainingRetries: RetryEntry[] = [];
+
+    for (const entry of this.retryJobs) {
+      if (entry.nextRetryAt <= now) {
+        readyRetries.push(entry);
+      } else {
+        remainingRetries.push(entry);
+      }
+    }
+
+    this.retryJobs = remainingRetries;
+
+    for (const entry of readyRetries) {
+      this.jobs.push(entry.job);
+      // 将 retryCount 附加到 job 的 payload 中（通过引用）
+      // 但这里我们使用闭包方式，在 processJob 中处理
+      // 实际上需要一种方式传递 retryCount
+      // 我们通过在 job payload 中存储 _retryCount 来实现
+      (entry.job.payload as unknown as Record<string, number>)._retryCount = entry.retryCount;
+    }
+
+    // 如果没有剩余重试任务，清理定时器
+    if (this.retryJobs.length === 0 && this.retryTimer) {
+      clearInterval(this.retryTimer);
+      this.retryTimer = null;
+    }
+  }
+
+  private async runWithTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error(`Job timeout after ${timeoutMs}ms`));
+        }, timeoutMs);
+      }),
+    ]);
+  }
+
+  private setupGracefulShutdown(): void {
+    const shutdown = () => {
+      console.log('Shutting down job queue...');
+      this.stopped = true;
+      if (this.retryTimer) {
+        clearInterval(this.retryTimer);
+        this.retryTimer = null;
+      }
+    };
+
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
   }
 }
 
-export const queue = new MemoryQueue();
+export const queue = new JobQueue({
+  maxConcurrency: 3,
+  baseRetryDelayMs: 5000,
+  maxRetries: 3,
+  jobTimeoutMs: 30000,
+});

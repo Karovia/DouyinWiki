@@ -7,13 +7,23 @@ import { importRouter } from './api/routers/import';
 import { videosRouter } from './api/routers/videos';
 import { MockDouyinConnector } from './infrastructure/douyin-connector';
 import { MockLLMClient } from './infrastructure/llm-client';
-import { queue } from './workers/queue';
+import { JobQueue } from './workers/queue';
 import { registerParseWorker } from './workers/parse-worker';
+import { ImportService } from './services/import-service';
 
 // 注册 Worker
 const connector = new MockDouyinConnector();
 const llm = new MockLLMClient();
-registerParseWorker(queue, connector, llm);
+const importService = new ImportService(connector);
+
+const queue = new JobQueue({
+  maxConcurrency: 3,
+  baseRetryDelayMs: 5000,
+  maxRetries: 3,
+  jobTimeoutMs: 30000,
+});
+
+registerParseWorker(queue, connector, llm, importService);
 
 // 合并 tRPC Router
 export const appRouter = router({
