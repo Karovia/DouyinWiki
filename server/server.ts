@@ -6,6 +6,7 @@ import { createServer, type Server } from 'http';
 import express from 'express';
 import { createExpressMiddleware } from '@trpc/server/adapters/express';
 import { resolve } from 'path';
+import { isPathInside } from './utils/path-security';
 import router from './routes/index';
 import { setupVite } from './vite';
 import { initDatabase } from './db/index';
@@ -76,15 +77,9 @@ async function startServer(): Promise<Server> {
 
       // 解析为绝对路径
       const requestedPath = resolve(uploadsDir, decodedPath);
-      const resolvedUploadsDir = resolve(uploadsDir);
 
-      // 确保请求的路径在 uploads 目录内（统一小写、正斜杠，跨平台兼容）
-      const reqLower = requestedPath.toLowerCase().replace(/\\/g, '/');
-      const dirLower = resolvedUploadsDir.toLowerCase().replace(/\\/g, '/');
-      const sep = dirLower.endsWith('/') ? '' : '/';
-      const isInside = reqLower.startsWith(dirLower + sep) || reqLower === dirLower;
-
-      if (!isInside) {
+      // 确保请求的路径在 uploads 目录内
+      if (!isPathInside(requestedPath, uploadsDir)) {
         res.status(403).json({ error: 'Forbidden' });
         return;
       }

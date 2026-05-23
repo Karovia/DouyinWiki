@@ -1,5 +1,6 @@
 import { mkdir, writeFile, unlink, access } from 'fs/promises';
 import { dirname, resolve, isAbsolute } from 'path';
+import { isPathInside } from '../utils/path-security';
 
 /**
  * 本地文件系统存储连接器
@@ -42,15 +43,8 @@ function keyToPath(key: string): string {
 /**
  * 验证 key 解析后的路径是否在 uploads 目录内
  */
-function normalizePath(p: string): string {
-  return resolve(p).toLowerCase().replace(/\\/g, '/');
-}
-
 function isPathSafe(filePath: string): boolean {
-  const resolved = normalizePath(filePath);
-  const uploadsResolved = normalizePath(UPLOADS_DIR);
-  const sep = uploadsResolved.endsWith('/') ? '' : '/';
-  return resolved.startsWith(uploadsResolved + sep) || resolved === uploadsResolved;
+  return isPathInside(filePath, UPLOADS_DIR);
 }
 
 /**
