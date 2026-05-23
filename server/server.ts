@@ -53,10 +53,10 @@ async function startServer(): Promise<Server> {
   app.use(express.urlencoded({ extended: true }));
 
   // /media 静态文件路由（本地存储的文件访问）
-  app.get('/media/*', (req, res, next) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rawPath = (req.params as any)[0] || '';
-    const uploadsDir = getUploadsDir();
+  // 先挂载安全中间件，再挂载 static 中间件，express 会自动去掉 /media 前缀
+  const uploadsDir = getUploadsDir();
+  app.use('/media', (req, res, next) => {
+    const rawPath = req.url || '';
 
     try {
       // 安全检查：禁止包含 ..
@@ -78,25 +78,22 @@ async function startServer(): Promise<Server> {
       const requestedPath = resolve(uploadsDir, decodedPath);
       const resolvedUploadsDir = resolve(uploadsDir);
 
-      // 确保请求的路径在 uploads 目录内
-      const isInside =
-        requestedPath.startsWith(resolvedUploadsDir + '\\') ||
-        requestedPath.startsWith(resolvedUploadsDir + '/') ||
-        requestedPath === resolvedUploadsDir;
+      // 确保请求的路径在 uploads 目录内（统一小写比较，处理 Windows 路径分隔符）
+      const reqLower = requestedPath.toLowerCase();
+      const dirLower = resolvedUploadsDir.toLowerCase();
+      const sep = dirLower.endsWith('\\') ? '' : '\\';
+      const isInside = reqLower.startsWith(dirLower + sep) || reqLower === dirLower;
 
       if (!isInside) {
         res.status(403).json({ error: 'Forbidden' });
         return;
       }
 
-      // 使用 express.static 服务文件
-      express.static(uploadsDir, {
-        fallthrough: false,
-      })(req, res, next);
+      next();
     } catch {
       res.status(400).json({ error: 'Bad request' });
     }
-  });
+  }, express.static(uploadsDir));
 
   // tRPC 中间件
   app.use(

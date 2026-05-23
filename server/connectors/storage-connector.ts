@@ -1,5 +1,5 @@
-import { mkdir, writeFile, readFile, unlink, access } from 'fs/promises';
-import { join, resolve, isAbsolute } from 'path';
+import { mkdir, writeFile, unlink, access } from 'fs/promises';
+import { dirname, resolve, isAbsolute } from 'path';
 
 /**
  * 本地文件系统存储连接器
@@ -43,9 +43,10 @@ function keyToPath(key: string): string {
  * 验证 key 解析后的路径是否在 uploads 目录内
  */
 function isPathSafe(filePath: string): boolean {
-  const resolved = resolve(filePath);
-  const uploadsResolved = resolve(UPLOADS_DIR);
-  return resolved.startsWith(uploadsResolved + '\\') || resolved.startsWith(uploadsResolved + '/') || resolved === uploadsResolved;
+  const resolved = resolve(filePath).toLowerCase();
+  const uploadsResolved = resolve(UPLOADS_DIR).toLowerCase();
+  const sep = uploadsResolved.endsWith('\\') ? '' : '\\';
+  return resolved.startsWith(uploadsResolved + sep) || resolved === uploadsResolved;
 }
 
 /**
@@ -81,10 +82,13 @@ export async function uploadFromUrl(url: string, fileName: string, contentType?:
 
     await ensureUploadsDir();
     const filePath = keyToPath(fileName);
+    if (!isPathSafe(filePath)) {
+      throw new Error(`Path traversal detected: ${fileName}`);
+    }
 
     // 确保子目录存在
-    const dir = filePath.substring(0, filePath.lastIndexOf('/') !== -1 ? filePath.lastIndexOf('/') : filePath.lastIndexOf('\\'));
-    if (dir && dir !== UPLOADS_DIR) {
+    const dir = dirname(filePath);
+    if (dir !== UPLOADS_DIR) {
       await mkdir(dir, { recursive: true });
     }
 
@@ -111,13 +115,13 @@ export async function uploadBuffer(buffer: Buffer, fileName: string, contentType
 
   await ensureUploadsDir();
   const filePath = keyToPath(fileName);
+  if (!isPathSafe(filePath)) {
+    throw new Error(`Path traversal detected: ${fileName}`);
+  }
 
   // 确保子目录存在
-  const lastSlash = filePath.lastIndexOf('/');
-  const lastBackslash = filePath.lastIndexOf('\\');
-  const sepIndex = Math.max(lastSlash, lastBackslash);
-  if (sepIndex > 0) {
-    const dir = filePath.substring(0, sepIndex);
+  const dir = dirname(filePath);
+  if (dir !== UPLOADS_DIR) {
     await mkdir(dir, { recursive: true });
   }
 
