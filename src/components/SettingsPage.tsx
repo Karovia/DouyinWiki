@@ -197,11 +197,15 @@ export function SettingsPage() {
   };
 
   const handleDelete = async (provider: ProviderItem) => {
-    if (!window.confirm(`确定要删除「${provider.name}」吗？此操作不可恢复。`)) return;
+    const isDefault = provider.isDefault;
+    const confirmMsg = isDefault
+      ? `「${provider.name}」是当前默认模型服务，删除后将由系统自动指定新的默认服务。确定要删除吗？`
+      : `确定要删除「${provider.name}」吗？此操作不可恢复。`;
+    if (!window.confirm(confirmMsg)) return;
     setDeletingId(provider.id);
     try {
       await settingsApi.deleteProvider({ id: provider.id, workspaceId: WORKSPACE_ID });
-      showToast('success', '模型服务已删除');
+      showToast('success', isDefault ? '模型服务已删除（请检查新的默认服务设置）' : '模型服务已删除');
       await loadProviders();
     } catch (err) {
       console.error('Failed to delete provider:', err);
