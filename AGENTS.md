@@ -18,7 +18,7 @@
 │   ├── prepare.sh      # 预处理脚本
 │   └── start.sh        # 生产环境启动脚本
 ├── server/             # 服务端逻辑
-│   ├── connectors/     # 外部服务连接器（抖音、LLM、S3存储）
+│   ├── connectors/     # 外部服务连接器（抖音、LLM、本地存储）
 │   ├── db/             # Drizzle ORM Schema + 数据库初始化
 │   ├── domain/         # 领域类型定义
 │   ├── routes/         # 传统 API 路由（健康检查）

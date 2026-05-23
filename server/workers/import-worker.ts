@@ -239,7 +239,7 @@ async function processJob(jobId: string): Promise<void> {
       content: summary,
       promptVersion: 'v1',
       outputSchemaVersion: 'v1',
-      modelName: 'doubao-seed-2-0-mini-260215',
+      modelName: 'default',
       createdAt: new Date(),
     });
 
