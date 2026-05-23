@@ -352,6 +352,7 @@ export const settingsRouter = router({
               ],
               max_tokens: 5,
             }),
+            signal: AbortSignal.timeout(15000),
           });
 
           const elapsed = Date.now() - startTime;
@@ -418,6 +419,7 @@ export const settingsRouter = router({
             headers: {
               Authorization: `Bearer ${apiKey}`,
             },
+            signal: AbortSignal.timeout(15000),
           });
 
           if (!response.ok) {
