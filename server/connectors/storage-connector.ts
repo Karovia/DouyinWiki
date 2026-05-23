@@ -42,10 +42,14 @@ function keyToPath(key: string): string {
 /**
  * 验证 key 解析后的路径是否在 uploads 目录内
  */
+function normalizePath(p: string): string {
+  return resolve(p).toLowerCase().replace(/\\/g, '/');
+}
+
 function isPathSafe(filePath: string): boolean {
-  const resolved = resolve(filePath).toLowerCase();
-  const uploadsResolved = resolve(UPLOADS_DIR).toLowerCase();
-  const sep = uploadsResolved.endsWith('\\') ? '' : '\\';
+  const resolved = normalizePath(filePath);
+  const uploadsResolved = normalizePath(UPLOADS_DIR);
+  const sep = uploadsResolved.endsWith('/') ? '' : '/';
   return resolved.startsWith(uploadsResolved + sep) || resolved === uploadsResolved;
 }
 

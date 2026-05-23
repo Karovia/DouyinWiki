@@ -78,10 +78,10 @@ async function startServer(): Promise<Server> {
       const requestedPath = resolve(uploadsDir, decodedPath);
       const resolvedUploadsDir = resolve(uploadsDir);
 
-      // 确保请求的路径在 uploads 目录内（统一小写比较，处理 Windows 路径分隔符）
-      const reqLower = requestedPath.toLowerCase();
-      const dirLower = resolvedUploadsDir.toLowerCase();
-      const sep = dirLower.endsWith('\\') ? '' : '\\';
+      // 确保请求的路径在 uploads 目录内（统一小写、正斜杠，跨平台兼容）
+      const reqLower = requestedPath.toLowerCase().replace(/\\/g, '/');
+      const dirLower = resolvedUploadsDir.toLowerCase().replace(/\\/g, '/');
+      const sep = dirLower.endsWith('/') ? '' : '/';
       const isInside = reqLower.startsWith(dirLower + sep) || reqLower === dirLower;
 
       if (!isInside) {
