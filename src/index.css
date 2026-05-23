@@ -1,0 +1,34 @@
+@import url('https://fonts.googleapis.cn/css2?family=Geist:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-geist: "Geist", ui-sans-serif, system-ui, sans-serif;
+  
+  --color-surface: #FFFFFF;
+  --color-surface-dim: #fcf9f8;
+  --color-surface-container: #FAFAFA;
+  --color-border-subtle: #EAEAEA;
+  --color-text-primary: #1A1A1A;
+  --color-text-secondary: #8C8C8C;
+  --color-accent: #2C2C2C;
+}
+
+@layer base {
+  body {
+    @apply font-geist bg-surface text-text-primary antialiased;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-accent text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-text-primary transition-colors flex items-center justify-center;
+  }
+  
+  .btn-secondary {
+    @apply bg-white text-text-primary px-5 py-2.5 rounded-lg text-sm font-medium border border-border-subtle hover:border-text-secondary transition-colors flex items-center justify-center;
+  }
+
+  .card {
+    @apply bg-surface-container border border-border-subtle rounded-2xl transition-all duration-300;
+  }
+}
