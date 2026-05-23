@@ -4,8 +4,8 @@ import { Menu, X } from 'lucide-react';
 import type { MtaCategory } from '../trpc';
 
 interface HeaderProps {
-  currentView: 'import' | 'list' | 'mta';
-  onNavigate: (view: 'import' | 'list' | 'mta', subCategory?: MtaCategory | 'all') => void;
+  currentView: 'import' | 'list' | 'mta' | 'settings';
+  onNavigate: (view: 'import' | 'list' | 'mta' | 'settings', subCategory?: MtaCategory | 'all') => void;
   mtaSubCategory?: MtaCategory | 'all';
 }
 
@@ -13,6 +13,7 @@ const mainNavItems = [
   { key: 'import', label: '导入视频' },
   { key: 'list', label: 'Wiki列表' },
   { key: 'mta', label: 'MTA' },
+  { key: 'settings', label: '设置' },
 ] as const;
 
 const mtaSubNavItems = [
@@ -38,7 +39,7 @@ export function Header({ currentView, onNavigate, mtaSubCategory = 'training' }:
     }
   }, [menuOpen]);
 
-  const handleNav = (view: 'import' | 'list' | 'mta', sub?: MtaCategory | 'all') => {
+  const handleNav = (view: 'import' | 'list' | 'mta' | 'settings', sub?: MtaCategory | 'all') => {
     onNavigate(view, sub);
     setMenuOpen(false);
   };

@@ -355,3 +355,77 @@ export const mtaApi = {
   researchExport: (input: { docId: string; workspaceId: string; format: 'pdf' | 'docx' | 'html' }) =>
     trpcMutation<{ base64?: string; filename?: string; mimeType?: string; error?: string }>('mta.researchExport', input),
 };
+
+// ─── Settings API ───
+
+export interface ProviderItem {
+  id: string;
+  name: string;
+  baseUrl: string;
+  textModel: string;
+  visionModel: string | null;
+  videoModel: string | null;
+  capabilities: string[];
+  isDefault: boolean;
+  isEnabled: boolean;
+  hasApiKey: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ProviderCreateInput {
+  workspaceId: string;
+  name: string;
+  baseUrl: string;
+  apiKey: string;
+  textModel: string;
+  visionModel?: string;
+  videoModel?: string;
+  capabilities: string[];
+  isDefault?: boolean;
+  isEnabled?: boolean;
+}
+
+export interface ProviderUpdateInput {
+  id: string;
+  workspaceId: string;
+  name?: string;
+  baseUrl?: string;
+  apiKey?: string;
+  textModel?: string;
+  visionModel?: string;
+  videoModel?: string;
+  capabilities?: string[];
+  isDefault?: boolean;
+  isEnabled?: boolean;
+}
+
+export interface ProvidersListResult {
+  items: ProviderItem[];
+}
+
+export interface TestProviderResult {
+  success: boolean;
+  latencyMs?: number;
+  error?: string;
+}
+
+export const settingsApi = {
+  listProviders: (input: { workspaceId: string }) =>
+    trpcQuery<ProvidersListResult>('settings.providers.list', input),
+
+  createProvider: (input: ProviderCreateInput) =>
+    trpcMutation<{ id: string }>('settings.providers.create', input as unknown as Record<string, unknown>),
+
+  updateProvider: (input: ProviderUpdateInput) =>
+    trpcMutation<{ success: boolean }>('settings.providers.update', input as unknown as Record<string, unknown>),
+
+  deleteProvider: (input: { id: string; workspaceId: string }) =>
+    trpcMutation<{ success: boolean }>('settings.providers.delete', input),
+
+  setDefaultProvider: (input: { id: string; workspaceId: string }) =>
+    trpcMutation<{ success: boolean }>('settings.providers.setDefault', input),
+
+  testProvider: (input: { id: string; workspaceId: string }) =>
+    trpcMutation<TestProviderResult>('settings.providers.test', input),
+};

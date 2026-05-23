@@ -8,6 +8,7 @@ import MtaPage from './components/MtaPage';
 import TrainingPage from './components/TrainingPage';
 import PlanningPage from './components/PlanningPage';
 import DeepResearchPage from './components/DeepResearchPage';
+import { SettingsPage } from './components/SettingsPage';
 import { WikiItem, TaskStatus } from './types';
 import { AnimatePresence, motion } from 'motion/react';
 import { CheckCircle2, X, ExternalLink, Tag, AlertCircle, MessageCircle, Send, Trash2, Loader2, Play, ChefHat, RefreshCw, Dumbbell, MapPin, BookOpen, Search } from 'lucide-react';
@@ -171,7 +172,7 @@ function VideoPlayer({ videoId, coverUrl }: { videoId: string; coverUrl: string 
 }
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<'import' | 'list' | 'mta'>('import');
+  const [currentView, setCurrentView] = useState<'import' | 'list' | 'mta' | 'settings'>('import');
   const [mtaSubCategory, setMtaSubCategory] = useState<MtaCategory | 'all'>('training');
   const [task, setTask] = useState<TaskStatus | null>(null);
   const [wikis, setWikis] = useState<WikiItem[]>([]);
@@ -438,7 +439,7 @@ export default function App() {
   };
 
   // 切换到列表视图时刷新数据，并启动自动轮询
-  const handleNavigate = (view: 'import' | 'list' | 'mta', subCategory?: MtaCategory | 'all') => {
+  const handleNavigate = (view: 'import' | 'list' | 'mta' | 'settings', subCategory?: MtaCategory | 'all') => {
     setCurrentView(view);
     setShowMtaPage(false);
     setShowResearchPage(false);
@@ -449,6 +450,10 @@ export default function App() {
       const cat = subCategory || mtaSubCategory;
       if (subCategory) setMtaSubCategory(subCategory);
       loadMtaList(cat);
+    }
+    if (view === 'settings') {
+      setShowMtaPage(false);
+      setShowResearchPage(false);
     }
   };
 
@@ -805,7 +810,7 @@ export default function App() {
                 <WikiGrid items={wikis} onViewDetail={handleViewDetail} onRefresh={loadWikis} isRefreshing={isLoadingWikis} />
               )}
             </motion.div>
-          ) : (
+          ) : currentView === 'mta' ? (
             <motion.div
               key="mta-view"
               initial={{ opacity: 0, y: 20 }}
@@ -895,6 +900,8 @@ export default function App() {
                 )}
               </div>
             </motion.div>
+          ) : (
+            <SettingsPage />
           )}
         </AnimatePresence>
       </main>
