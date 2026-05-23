@@ -7,12 +7,6 @@ import fs from 'fs';
 const DATA_DIR = process.env.DATA_DIR || './data';
 const DB_PATH = process.env.DATABASE_URL || `file:${path.resolve(process.cwd(), DATA_DIR, 'douyin-wiki.db')}`;
 
-// 确保数据库目录存在
-const dbDir = path.dirname(DB_PATH.replace(/^file:/, ''));
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
-}
-
 const client: Client = createClient({
   url: DB_PATH,
 });
@@ -25,6 +19,13 @@ export type DB = typeof db;
  * 初始化数据库表结构
  */
 export async function initDatabase(): Promise<void> {
+  // 确保数据库目录存在（仅对本地 SQLite 文件路径）
+  if (DB_PATH.startsWith('file:')) {
+    const dbDir = path.dirname(DB_PATH.replace(/^file:/, ''));
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
+    }
+  }
   await client.execute(`
     CREATE TABLE IF NOT EXISTS workspaces (
       id TEXT PRIMARY KEY,
