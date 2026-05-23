@@ -80,7 +80,7 @@ async function startServer(): Promise<Server> {
     process.exit(1);
   });
 
-  server.listen(port, () => {
+  server.listen(port, hostname, () => {
     console.log(`\n✨ Server running at http://${hostname}:${port}`);
     console.log(`📝 Environment: ${isDev ? 'development' : 'production'}\n`);
   });

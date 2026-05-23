@@ -19,7 +19,7 @@ export async function setupVite(app: Application) {
       server: {
         middlewareMode: true,
         port: 5000,
-        host: '0.0.0.0',
+        host: process.env.HOSTNAME || '0.0.0.0',
         allowedHosts: true,
         hmr: {
           overlay: true,
