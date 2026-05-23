@@ -150,3 +150,32 @@ export const summaries = sqliteTable('summaries', {
 
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
+
+/**
+ * LLM Provider 配置表
+ */
+export const llmProviders = sqliteTable('llm_providers', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull(),
+  name: text('name').notNull(),
+  providerType: text('provider_type').notNull().default('openai_compatible'),
+  baseUrl: text('base_url').notNull(),
+  apiKeyEncrypted: text('api_key_encrypted').notNull(),
+  defaultTextModel: text('default_text_model').notNull(),
+  defaultVisionModel: text('default_vision_model'),
+  defaultVideoModel: text('default_video_model'),
+  capabilities: text('capabilities').notNull(),
+  isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
+
+/**
+ * 应用设置表（key-value 存储）
+ */
+export const appSettings = sqliteTable('app_settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});

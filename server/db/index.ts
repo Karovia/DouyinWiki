@@ -143,6 +143,36 @@ export async function initDatabase(): Promise<void> {
   `);
   await client.execute('CREATE INDEX IF NOT EXISTS idx_research_docs_video ON research_docs(workspace_id, video_id)');
 
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS llm_providers (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      provider_type TEXT NOT NULL DEFAULT 'openai_compatible',
+      base_url TEXT NOT NULL,
+      api_key_encrypted TEXT NOT NULL,
+      default_text_model TEXT NOT NULL,
+      default_vision_model TEXT,
+      default_video_model TEXT,
+      capabilities TEXT NOT NULL,
+      is_default INTEGER NOT NULL DEFAULT 0,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+  `);
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+  `);
+
+  await client.execute('CREATE INDEX IF NOT EXISTS idx_llm_providers_workspace ON llm_providers(workspace_id)');
+  await client.execute('CREATE INDEX IF NOT EXISTS idx_llm_providers_default ON llm_providers(workspace_id, is_default)');
+
   // 确保 mta_recipes 表有 category 字段（迁移）
   await client.execute(`ALTER TABLE mta_recipes ADD COLUMN category TEXT NOT NULL DEFAULT 'recipes'`).catch(() => {});
 
