@@ -13,6 +13,9 @@ import type { LlmMessage, LlmContentPart } from './llm/types';
 
 const execFileAsync = promisify(execFile);
 
+// 默认工作区 ID（当前代码未从调用方传递 workspaceId，后续可扩展）
+const DEFAULT_WORKSPACE_ID = 'ws_default';
+
 // ─── Prompt 模板 ───
 
 const SUMMARY_PROMPT = `你是一个专业的视频内容分析师。请根据提供的视频信息和封面图片，生成一段简洁的中文摘要。
@@ -103,7 +106,7 @@ export async function generateSummary(
   ];
 
   try {
-    const result = await invokeDefaultLlm('ws_default', messages, {
+    const result = await invokeDefaultLlm(DEFAULT_WORKSPACE_ID, messages, {
       capability: 'vision',
       temperature: 0.5,
     });
@@ -133,7 +136,7 @@ export async function generateTags(
   ];
 
   try {
-    const result = await invokeDefaultLlm('ws_default', messages, {
+    const result = await invokeDefaultLlm(DEFAULT_WORKSPACE_ID, messages, {
       capability: 'text',
       temperature: 0.3,
     });
@@ -193,7 +196,7 @@ export async function askWithSummary(
   ];
 
   try {
-    const result = await invokeDefaultLlm('ws_default', messages, {
+    const result = await invokeDefaultLlm(DEFAULT_WORKSPACE_ID, messages, {
       capability: 'vision',
       temperature: 0.7,
     });
@@ -319,7 +322,7 @@ async function askWithVideoUrl(
     { role: 'user', content: userContent },
   ];
 
-  const result = await invokeDefaultLlm('ws_default', messages, {
+  const result = await invokeDefaultLlm(DEFAULT_WORKSPACE_ID, messages, {
     capability: 'video',
     temperature: 0.7,
   });
@@ -346,7 +349,7 @@ export async function generateDeepResearch(params: {
     { role: 'user', content: userPrompt },
   ];
 
-  const result = await invokeDefaultLlm('ws_default', messages, {
+  const result = await invokeDefaultLlm(DEFAULT_WORKSPACE_ID, messages, {
     capability: 'text',
     temperature: 0.7,
   });
@@ -574,18 +577,14 @@ export async function generateCookingRecipe(
     });
   }
 
-  // 如果有视频 URL，尝试直接传视频
+  // 如果有视频 URL，直接传视频
   let useVideoUrl = false;
   if (params.videoUrl && params.videoId) {
-    try {
-      userContent.push({
-        type: 'video_url',
-        video_url: { url: params.videoUrl, fps: 1 },
-      });
-      useVideoUrl = true;
-    } catch {
-      // 忽略，继续使用摘要+封面
-    }
+    userContent.push({
+      type: 'video_url',
+      video_url: { url: params.videoUrl, fps: 1 },
+    });
+    useVideoUrl = true;
   }
 
   const messages: LlmMessage[] = [
@@ -594,7 +593,7 @@ export async function generateCookingRecipe(
   ];
 
   try {
-    const result = await invokeDefaultLlm('ws_default', messages, {
+    const result = await invokeDefaultLlm(DEFAULT_WORKSPACE_ID, messages, {
       capability: useVideoUrl ? 'video' : 'vision',
       temperature: 0.3,
     });
@@ -667,7 +666,7 @@ async function generateCookingRecipeWithFrames(
     { role: 'user', content: userContent },
   ];
 
-  const result = await invokeDefaultLlm('ws_default', messages, {
+  const result = await invokeDefaultLlm(DEFAULT_WORKSPACE_ID, messages, {
     capability: 'vision',
     temperature: 0.3,
   });
@@ -735,7 +734,7 @@ export async function generateTrainingPlanWithVideoUrl(
   ];
 
   try {
-    const result = await invokeDefaultLlm('ws_default', messages, {
+    const result = await invokeDefaultLlm(DEFAULT_WORKSPACE_ID, messages, {
       capability: 'video',
       temperature: 0.3,
     });
@@ -793,7 +792,7 @@ export async function generateTrainingPlanWithFrames(
   ];
 
   try {
-    const result = await invokeDefaultLlm('ws_default', messages, {
+    const result = await invokeDefaultLlm(DEFAULT_WORKSPACE_ID, messages, {
       capability: 'vision',
       temperature: 0.3,
     });
@@ -900,7 +899,7 @@ export async function generateTravelPlanWithVideoUrl(
   ];
 
   try {
-    const result = await invokeDefaultLlm('ws_default', messages, {
+    const result = await invokeDefaultLlm(DEFAULT_WORKSPACE_ID, messages, {
       capability: 'video',
       temperature: 0.3,
     });
@@ -957,7 +956,7 @@ export async function generateTravelPlanWithFrames(
   ];
 
   try {
-    const result = await invokeDefaultLlm('ws_default', messages, {
+    const result = await invokeDefaultLlm(DEFAULT_WORKSPACE_ID, messages, {
       capability: 'vision',
       temperature: 0.3,
     });
@@ -1000,7 +999,7 @@ export async function generateTravelPlanFromText(
   ];
 
   try {
-    const result = await invokeDefaultLlm('ws_default', messages, {
+    const result = await invokeDefaultLlm(DEFAULT_WORKSPACE_ID, messages, {
       capability: 'text',
       temperature: 0.3,
     });
@@ -1104,7 +1103,7 @@ async function askWithKeyFrames(
     { role: 'user', content: userContent },
   ];
 
-  const result = await invokeDefaultLlm('ws_default', messages, {
+  const result = await invokeDefaultLlm(DEFAULT_WORKSPACE_ID, messages, {
     capability: 'vision',
     temperature: 0.7,
   });
