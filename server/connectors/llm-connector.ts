@@ -1,85 +1,17 @@
 /**
  * LLM 连接器
- * 使用 coze-coding-dev-sdk 调用 LLM
+ * 使用项目自己的 OpenAI-compatible LLM Client
  * 支持多模态：封面图片 + 视频直接理解 + 帧提取降级
  */
-import { LLMClient, Config } from 'coze-coding-dev-sdk';
-import type { ContentPart } from 'coze-coding-dev-sdk';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { mkdir, readFile, rm } from 'fs/promises';
 import { join } from 'path';
 import { uploadBuffer } from './storage-connector';
+import { invokeDefaultLlm } from './llm/llm-service';
+import type { LlmMessage, LlmContentPart } from './llm/types';
 
 const execFileAsync = promisify(execFile);
-
-// ─── Kimi API 配置 ───
-const KIMI_API_KEY = process.env.KIMI_API_KEY || 'sk-kimi-EBJTvOoqhH8kLcTWuticSq2JNKQgdKXlbTKIDcrwl0VNSYLpLYsTfxHqcF0NFdNC';
-const KIMI_BASE_URL = (process.env.KIMI_BASE_URL || 'https://api.kimi.com/coding').replace(/\/$/, '');
-const KIMI_MODEL = process.env.KIMI_MODEL || 'kimi-for-coding';
-
-interface KimiMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string | Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }>;
-}
-
-/** 调用 Kimi OpenAI-Compatible API */
-async function callKimi(
-  messages: Array<{ role: string; content: string | ContentPart[] }>,
-  options: { temperature?: number; maxTokens?: number } = {},
-): Promise<string> {
-  const url = `${KIMI_BASE_URL}/v1/chat/completions`;
-
-  const formattedMessages: KimiMessage[] = messages.map((m) => {
-    if (Array.isArray(m.content)) {
-      const parts = m.content
-        .filter((p: ContentPart) => p.type !== 'video_url')
-        .map((p: ContentPart) => {
-          if (p.type === 'text') return { type: 'text' as const, text: p.text ?? '' };
-          if (p.type === 'image_url' && p.image_url) return { type: 'image_url' as const, image_url: { url: p.image_url.url } };
-          return { type: 'text' as const, text: '' };
-        });
-      return {
-        role: m.role as 'system' | 'user' | 'assistant',
-        content: parts as KimiMessage['content'],
-      };
-    }
-    return {
-      role: m.role as 'system' | 'user' | 'assistant',
-      content: m.content,
-    };
-  });
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${KIMI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: KIMI_MODEL,
-      messages: formattedMessages,
-      temperature: options.temperature ?? 0.7,
-      max_tokens: options.maxTokens ?? 4096,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Kimi API error: ${response.status} ${errorText}`);
-  }
-
-  const data = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error('Kimi API returned empty content');
-  }
-
-  return content;
-}
 
 // ─── Prompt 模板 ───
 
@@ -127,16 +59,27 @@ const TAG_PROMPT = `你是一个专业的内容标签生成器。请根据视频
 
 示例输出：科技,AI,编程,教程,前端`;
 
+const DEEP_RESEARCH_PROMPT = `你是一位专业领域的深度研究分析师。请基于用户提供的视频信息，围绕用户指定的研究主题，撰写一份深度研究报告。
+
+请用 Markdown 格式输出，要求：
+1. 报告标题用 # 一级标题
+2. 包含以下章节（根据实际情况调整）：
+   - 研究背景与概述
+   - 核心观点分析
+   - 关键数据与事实
+   - 深度洞察与思考
+   - 相关延伸与建议
+3. 内容要有深度、有逻辑、有洞察，不是简单的信息罗列
+4. 语言专业但通俗易懂
+5. 适当使用列表、表格、引用等 Markdown 语法增强可读性`;
+
 // ─── 生成摘要 ───
 
 export async function generateSummary(
   videoInfo: { title: string; authorName: string | null; description: string | null; coverUrl?: string; pageText?: string },
-  customHeaders?: Record<string, string>,
+  _customHeaders?: Record<string, string>,
 ): Promise<string> {
-  const config = new Config();
-  const client = new LLMClient(config, customHeaders);
-
-  const userContent: ContentPart[] = [];
+  const userContent: LlmContentPart[] = [];
 
   const textParts = [
     `视频标题：${videoInfo.title}`,
@@ -154,17 +97,17 @@ export async function generateSummary(
     });
   }
 
-  const messages = [
-    { role: 'system' as const, content: SUMMARY_PROMPT },
-    { role: 'user' as const, content: userContent as unknown as string },
+  const messages: LlmMessage[] = [
+    { role: 'system', content: SUMMARY_PROMPT },
+    { role: 'user', content: userContent },
   ];
 
   try {
-    const response = await client.invoke(messages, {
-      model: 'doubao-seed-2-0-pro-260215',
+    const result = await invokeDefaultLlm('ws_default', messages, {
+      capability: 'vision',
       temperature: 0.5,
     });
-    return response.content.trim();
+    return result.content.trim();
   } catch (error) {
     console.error('LLM summary generation failed:', error);
     throw error;
@@ -175,11 +118,8 @@ export async function generateSummary(
 
 export async function generateTags(
   videoInfo: { title: string; authorName: string | null; description: string | null; aiSummary?: string },
-  customHeaders?: Record<string, string>,
+  _customHeaders?: Record<string, string>,
 ): Promise<string[]> {
-  const config = new Config();
-  const client = new LLMClient(config, customHeaders);
-
   const userContent = [
     `标题：${videoInfo.title}`,
     videoInfo.authorName ? `作者：${videoInfo.authorName}` : '',
@@ -187,17 +127,17 @@ export async function generateTags(
     videoInfo.aiSummary ? `摘要：${videoInfo.aiSummary}` : '',
   ].filter(Boolean).join('\n');
 
-  const messages = [
-    { role: 'system' as const, content: TAG_PROMPT },
-    { role: 'user' as const, content: userContent },
+  const messages: LlmMessage[] = [
+    { role: 'system', content: TAG_PROMPT },
+    { role: 'user', content: userContent },
   ];
 
   try {
-    const response = await client.invoke(messages, {
-      model: 'doubao-seed-2-0-mini-260215',
+    const result = await invokeDefaultLlm('ws_default', messages, {
+      capability: 'text',
       temperature: 0.3,
     });
-    return response.content
+    return result.content
       .split(/[,，、\n]/)
       .map((t: string) => t.trim())
       .filter((t: string) => t.length > 0 && t.length <= 10)
@@ -233,7 +173,7 @@ export async function askWithSummary(
     params.description ? `原始描述：${params.description}` : '',
   ].filter(Boolean).join('\n');
 
-  const userContent: ContentPart[] = [];
+  const userContent: LlmContentPart[] = [];
 
   userContent.push({
     type: 'text',
@@ -247,18 +187,17 @@ export async function askWithSummary(
     });
   }
 
-  const messages = [
-    { role: 'system' as const, content: QA_SUMMARY_SYSTEM_PROMPT },
-    { role: 'user' as const, content: userContent },
+  const messages: LlmMessage[] = [
+    { role: 'system', content: QA_SUMMARY_SYSTEM_PROMPT },
+    { role: 'user', content: userContent },
   ];
 
   try {
-    const config = new Config();
-    const client = new LLMClient(config, _customHeaders);
-    const response = await client.invoke(messages, {
+    const result = await invokeDefaultLlm('ws_default', messages, {
+      capability: 'vision',
       temperature: 0.7,
     });
-    const rawAnswer = response.content;
+    const rawAnswer = result.content;
     const trimmed = rawAnswer.trim();
     const needsVideoAnalysis = trimmed.startsWith('[INSUFFICIENT]');
     const answer = needsVideoAnalysis
@@ -336,17 +275,17 @@ export async function askWithVideo(
     videoUrl: string;
     videoId: string;
   },
-  customHeaders?: Record<string, string>,
+  _customHeaders?: Record<string, string>,
 ): Promise<string> {
   // 方案 A：直接传视频 URL 给 LLM（最准确，但有大小限制）
   try {
-    return await askWithVideoUrl(params, customHeaders);
+    return await askWithVideoUrl(params);
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : String(error);
     // 视频太大或格式不支持，降级为方案 B
     if (errMsg.includes('exceeds the limit') || errMsg.includes('InvalidParameter')) {
       console.log('[LLM] Video too large, falling back to key frames');
-      return askWithKeyFrames(params, customHeaders);
+      return askWithKeyFrames(params);
     }
     // 其他错误（如网络、认证）直接抛出
     throw error;
@@ -356,12 +295,8 @@ export async function askWithVideo(
 /** 方案 A：直接传视频 URL 给 LLM */
 async function askWithVideoUrl(
   params: { question: string; videoTitle: string; aiSummary: string; videoUrl: string },
-  customHeaders?: Record<string, string>,
 ): Promise<string> {
-  const config = new Config();
-  const client = new LLMClient(config, customHeaders);
-
-  const userContent: ContentPart[] = [
+  const userContent: LlmContentPart[] = [
     {
       type: 'text',
       text: [
@@ -379,31 +314,17 @@ async function askWithVideoUrl(
     },
   ];
 
-  const messages = [
-    { role: 'system' as const, content: QA_VIDEO_SYSTEM_PROMPT },
-    { role: 'user' as const, content: userContent as unknown as string },
+  const messages: LlmMessage[] = [
+    { role: 'system', content: QA_VIDEO_SYSTEM_PROMPT },
+    { role: 'user', content: userContent },
   ];
 
-  const response = await client.invoke(messages, {
-    model: 'doubao-seed-2-0-pro-260215',
+  const result = await invokeDefaultLlm('ws_default', messages, {
+    capability: 'video',
     temperature: 0.7,
   });
-  return response.content.trim();
+  return result.content.trim();
 }
-
-const DEEP_RESEARCH_PROMPT = `你是一位专业领域的深度研究分析师。请基于用户提供的视频信息，围绕用户指定的研究主题，撰写一份深度研究报告。
-
-请用 Markdown 格式输出，要求：
-1. 报告标题用 # 一级标题
-2. 包含以下章节（根据实际情况调整）：
-   - 研究背景与概述
-   - 核心观点分析
-   - 关键数据与事实
-   - 深度洞察与思考
-   - 相关延伸与建议
-3. 内容要有深度、有逻辑、有洞察，不是简单的信息罗列
-4. 语言专业但通俗易懂
-5. 适当使用列表、表格、引用等 Markdown 语法增强可读性`;
 
 export async function generateDeepResearch(params: {
   videoTitle: string;
@@ -411,9 +332,6 @@ export async function generateDeepResearch(params: {
   description?: string;
   topic: string;
 }): Promise<string> {
-  const config = new Config();
-  const client = new LLMClient(config);
-
   const userPrompt = [
     `视频标题：${params.videoTitle}`,
     `视频摘要：${params.aiSummary || '无'}`,
@@ -423,17 +341,17 @@ export async function generateDeepResearch(params: {
     '请围绕用户指定的研究主题，基于视频内容，撰写一份深度研究报告。',
   ].join('\n');
 
-  const messages = [
-    { role: 'system' as const, content: DEEP_RESEARCH_PROMPT },
-    { role: 'user' as const, content: userPrompt },
+  const messages: LlmMessage[] = [
+    { role: 'system', content: DEEP_RESEARCH_PROMPT },
+    { role: 'user', content: userPrompt },
   ];
 
-  const response = await client.invoke(messages, {
-    model: 'doubao-seed-2-0-pro-260215',
+  const result = await invokeDefaultLlm('ws_default', messages, {
+    capability: 'text',
     temperature: 0.7,
   });
 
-  return response.content.trim();
+  return result.content.trim();
 }
 
 // ─── 训练计划步骤生成 ───
@@ -634,12 +552,9 @@ export async function generateCookingRecipe(
     videoUrl?: string;
     videoId?: string;
   },
-  customHeaders?: Record<string, string>,
+  _customHeaders?: Record<string, string>,
 ): Promise<CookingRecipe | null> {
-  const config = new Config();
-  const client = new LLMClient(config, customHeaders);
-
-  const userContent: ContentPart[] = [];
+  const userContent: LlmContentPart[] = [];
 
   const textParts = [
     `视频标题：${params.videoTitle}`,
@@ -673,19 +588,19 @@ export async function generateCookingRecipe(
     }
   }
 
-  const messages = [
-    { role: 'system' as const, content: COOKING_RECIPE_PROMPT },
-    { role: 'user' as const, content: userContent as unknown as string },
+  const messages: LlmMessage[] = [
+    { role: 'system', content: COOKING_RECIPE_PROMPT },
+    { role: 'user', content: userContent },
   ];
 
   try {
-    const response = await client.invoke(messages, {
-      model: 'doubao-seed-2-0-pro-260215',
+    const result = await invokeDefaultLlm('ws_default', messages, {
+      capability: useVideoUrl ? 'video' : 'vision',
       temperature: 0.3,
     });
 
     // 解析 JSON 响应
-    const raw = response.content.trim();
+    const raw = result.content.trim();
     // 尝试从 markdown 代码块中提取 JSON
     const codeBlockMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
     const jsonStr = codeBlockMatch ? codeBlockMatch[1].trim() : raw;
@@ -708,7 +623,7 @@ export async function generateCookingRecipe(
         description: params.description,
         videoUrl: params.videoUrl!,
         videoId: params.videoId!,
-      }, customHeaders);
+      });
     }
     console.error('[LLM] Cooking recipe generation failed:', error);
     throw error;
@@ -724,14 +639,10 @@ async function generateCookingRecipeWithFrames(
     videoUrl: string;
     videoId: string;
   },
-  customHeaders?: Record<string, string>,
 ): Promise<CookingRecipe | null> {
-  const config = new Config();
-  const client = new LLMClient(config, customHeaders);
-
   const frameUrls = await extractKeyFrames(params.videoUrl, params.videoId, 5, 15);
 
-  const userContent: ContentPart[] = [];
+  const userContent: LlmContentPart[] = [];
 
   const textParts = [
     `视频标题：${params.videoTitle}`,
@@ -751,17 +662,17 @@ async function generateCookingRecipeWithFrames(
     });
   }
 
-  const messages = [
-    { role: 'system' as const, content: COOKING_RECIPE_PROMPT },
-    { role: 'user' as const, content: userContent as unknown as string },
+  const messages: LlmMessage[] = [
+    { role: 'system', content: COOKING_RECIPE_PROMPT },
+    { role: 'user', content: userContent },
   ];
 
-  const response = await client.invoke(messages, {
-    model: 'doubao-seed-2-0-pro-260215',
+  const result = await invokeDefaultLlm('ws_default', messages, {
+    capability: 'vision',
     temperature: 0.3,
   });
 
-  const raw = response.content.trim();
+  const raw = result.content.trim();
   // 尝试从 markdown 代码块中提取 JSON
   const codeBlockMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
   const jsonStr = codeBlockMatch ? codeBlockMatch[1].trim() : raw;
@@ -805,15 +716,9 @@ export async function generateTrainingPlanWithVideoUrl(
     description?: string;
     videoUrl: string;
   },
-  customHeaders?: Record<string, string>,
+  _customHeaders?: Record<string, string>,
 ): Promise<TrainingPlan | null> {
-  const config = new Config();
-  const client = new LLMClient(config, customHeaders);
-
-  const userContent: Array<
-    | { type: 'text'; text: string }
-    | { type: 'video_url'; video_url: { url: string } }
-  > = [
+  const userContent: LlmContentPart[] = [
     {
       type: 'text',
       text: `请根据以下健身视频内容生成训练计划：\n\n视频标题：${params.videoTitle}\nAI摘要：${params.aiSummary || '无'}\n描述：${params.description || '无'}`,
@@ -824,18 +729,18 @@ export async function generateTrainingPlanWithVideoUrl(
     },
   ];
 
-  const messages = [
-    { role: 'system' as const, content: TRAINING_PLAN_PROMPT },
-    { role: 'user' as const, content: userContent as unknown as string },
+  const messages: LlmMessage[] = [
+    { role: 'system', content: TRAINING_PLAN_PROMPT },
+    { role: 'user', content: userContent },
   ];
 
   try {
-    const response = await client.invoke(messages, {
-      model: 'doubao-seed-2-0-pro-260215',
+    const result = await invokeDefaultLlm('ws_default', messages, {
+      capability: 'video',
       temperature: 0.3,
     });
 
-    const raw = response.content.trim();
+    const raw = result.content.trim();
     const codeBlockMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
     const jsonStr = codeBlockMatch ? codeBlockMatch[1].trim() : raw;
     const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
@@ -859,11 +764,8 @@ export async function generateTrainingPlanWithFrames(
     videoUrl: string;
     videoId: string;
   },
-  customHeaders?: Record<string, string>,
+  _customHeaders?: Record<string, string>,
 ): Promise<TrainingPlan | null> {
-  const config = new Config();
-  const client = new LLMClient(config, customHeaders);
-
   // 提取关键帧
   const frameUrls = await extractKeyFrames(params.videoUrl, params.videoId, 5, 10);
 
@@ -871,10 +773,7 @@ export async function generateTrainingPlanWithFrames(
     throw new Error('Failed to extract any frames from video');
   }
 
-  const userContent: Array<
-    | { type: 'text'; text: string }
-    | { type: 'image_url'; image_url: { url: string; detail: 'high' } }
-  > = [
+  const userContent: LlmContentPart[] = [
     {
       type: 'text',
       text: `请根据以下健身视频的关键帧截图，生成结构化训练计划。\n\n视频标题：${params.videoTitle}\nAI摘要：${params.aiSummary || '无'}\n描述：${params.description || '无'}`,
@@ -888,18 +787,18 @@ export async function generateTrainingPlanWithFrames(
     });
   }
 
-  const messages = [
-    { role: 'system' as const, content: TRAINING_PLAN_PROMPT },
-    { role: 'user' as const, content: userContent as unknown as string },
+  const messages: LlmMessage[] = [
+    { role: 'system', content: TRAINING_PLAN_PROMPT },
+    { role: 'user', content: userContent },
   ];
 
   try {
-    const response = await client.invoke(messages, {
-      model: 'doubao-seed-2-0-pro-260215',
+    const result = await invokeDefaultLlm('ws_default', messages, {
+      capability: 'vision',
       temperature: 0.3,
     });
 
-    const raw = response.content.trim();
+    const raw = result.content.trim();
     const codeBlockMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
     const jsonStr = codeBlockMatch ? codeBlockMatch[1].trim() : raw;
     const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
@@ -982,15 +881,9 @@ export async function generateTravelPlanWithVideoUrl(
     description?: string;
     videoUrl: string;
   },
-  customHeaders?: Record<string, string>,
+  _customHeaders?: Record<string, string>,
 ): Promise<TravelPlan | null> {
-  const config = new Config();
-  const client = new LLMClient(config, customHeaders);
-
-  const userContent: Array<
-    | { type: 'text'; text: string }
-    | { type: 'video_url'; video_url: { url: string } }
-  > = [
+  const userContent: LlmContentPart[] = [
     {
       type: 'text',
       text: `请根据以下旅游视频内容生成旅游攻略：\n\n视频标题：${params.videoTitle}\nAI摘要：${params.aiSummary || '无'}\n描述：${params.description || '无'}`,
@@ -1001,18 +894,18 @@ export async function generateTravelPlanWithVideoUrl(
     },
   ];
 
-  const messages = [
-    { role: 'system' as const, content: TRAVEL_PLAN_PROMPT },
-    { role: 'user' as const, content: userContent as unknown as string },
+  const messages: LlmMessage[] = [
+    { role: 'system', content: TRAVEL_PLAN_PROMPT },
+    { role: 'user', content: userContent },
   ];
 
   try {
-    const response = await client.invoke(messages, {
-      model: 'doubao-seed-2-0-pro-260215',
+    const result = await invokeDefaultLlm('ws_default', messages, {
+      capability: 'video',
       temperature: 0.3,
     });
 
-    const raw = response.content.trim();
+    const raw = result.content.trim();
     const codeBlockMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
     const jsonStr = codeBlockMatch ? codeBlockMatch[1].trim() : raw;
     const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
@@ -1036,21 +929,15 @@ export async function generateTravelPlanWithFrames(
     videoUrl: string;
     videoId: string;
   },
-  customHeaders?: Record<string, string>,
+  _customHeaders?: Record<string, string>,
 ): Promise<TravelPlan | null> {
-  const config = new Config();
-  const client = new LLMClient(config, customHeaders);
-
   const frameUrls = await extractKeyFrames(params.videoUrl, params.videoId, 5, 10);
 
   if (frameUrls.length === 0) {
     throw new Error('Failed to extract any frames from video');
   }
 
-  const userContent: Array<
-    | { type: 'text'; text: string }
-    | { type: 'image_url'; image_url: { url: string; detail: 'high' } }
-  > = [
+  const userContent: LlmContentPart[] = [
     {
       type: 'text',
       text: `请根据以下旅游视频的关键帧截图，生成结构化旅游攻略。\n\n视频标题：${params.videoTitle}\nAI摘要：${params.aiSummary || '无'}\n描述：${params.description || '无'}`,
@@ -1064,18 +951,18 @@ export async function generateTravelPlanWithFrames(
     });
   }
 
-  const messages = [
-    { role: 'system' as const, content: TRAVEL_PLAN_PROMPT },
-    { role: 'user' as const, content: userContent as unknown as string },
+  const messages: LlmMessage[] = [
+    { role: 'system', content: TRAVEL_PLAN_PROMPT },
+    { role: 'user', content: userContent },
   ];
 
   try {
-    const response = await client.invoke(messages, {
-      model: 'doubao-seed-2-0-pro-260215',
+    const result = await invokeDefaultLlm('ws_default', messages, {
+      capability: 'vision',
       temperature: 0.3,
     });
 
-    const raw = response.content.trim();
+    const raw = result.content.trim();
     const codeBlockMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
     const jsonStr = codeBlockMatch ? codeBlockMatch[1].trim() : raw;
     const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
@@ -1096,15 +983,12 @@ export async function generateTravelPlanFromText(
     aiSummary: string;
     description?: string;
   },
-  customHeaders?: Record<string, string>,
+  _customHeaders?: Record<string, string>,
 ): Promise<TravelPlan | null> {
-  const config = new Config();
-  const client = new LLMClient(config, customHeaders);
-
-  const messages = [
-    { role: 'system' as const, content: TRAVEL_PLAN_PROMPT },
+  const messages: LlmMessage[] = [
+    { role: 'system', content: TRAVEL_PLAN_PROMPT },
     {
-      role: 'user' as const,
+      role: 'user',
       content: [
         `请根据以下视频文本信息生成旅游攻略：`,
         ``,
@@ -1116,12 +1000,12 @@ export async function generateTravelPlanFromText(
   ];
 
   try {
-    const response = await client.invoke(messages, {
-      model: 'doubao-seed-2-0-pro-260215',
+    const result = await invokeDefaultLlm('ws_default', messages, {
+      capability: 'text',
       temperature: 0.3,
     });
 
-    const raw = response.content.trim();
+    const raw = result.content.trim();
     const codeBlockMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
     const jsonStr = codeBlockMatch ? codeBlockMatch[1].trim() : raw;
     const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
@@ -1192,7 +1076,7 @@ async function askWithKeyFrames(
   }
 
   // 构建多模态消息：文本 + 多张关键帧截图
-  const userContent: ContentPart[] = [
+  const userContent: LlmContentPart[] = [
     {
       type: 'text',
       text: [
@@ -1215,15 +1099,14 @@ async function askWithKeyFrames(
     });
   }
 
-  const messages = [
-    { role: 'system' as const, content: QA_FRAMES_SYSTEM_PROMPT },
-    { role: 'user' as const, content: userContent },
+  const messages: LlmMessage[] = [
+    { role: 'system', content: QA_FRAMES_SYSTEM_PROMPT },
+    { role: 'user', content: userContent },
   ];
 
-  const config = new Config();
-  const client = new LLMClient(config, _customHeaders);
-  const response = await client.invoke(messages, {
+  const result = await invokeDefaultLlm('ws_default', messages, {
+    capability: 'vision',
     temperature: 0.7,
   });
-  return response.content.trim();
+  return result.content.trim();
 }
