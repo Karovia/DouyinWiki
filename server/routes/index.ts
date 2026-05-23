@@ -23,7 +23,7 @@ router.post('/api/data', (req, res) => {
 router.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    env: process.env.COZE_PROJECT_ENV,
+    env: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
   });
 });

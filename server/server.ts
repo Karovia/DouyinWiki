@@ -1,6 +1,7 @@
 // ABOUTME: Express server with Vite integration + tRPC
 // ABOUTME: Handles API routes, tRPC procedures, and serves frontend in dev/prod modes
 
+import 'dotenv/config';
 import { createServer, type Server } from 'http';
 import express from 'express';
 import { createExpressMiddleware } from '@trpc/server/adapters/express';
@@ -22,7 +23,7 @@ process.on('uncaughtException', (error) => {
   console.error('[Server] Uncaught exception:', error);
 });
 
-const isDev = process.env.COZE_PROJECT_ENV !== 'PROD';
+const isDev = process.env.NODE_ENV !== 'production';
 const port = parseInt(process.env.DEPLOY_RUN_PORT || process.env.PORT || '5000', 10);
 const hostname = process.env.HOSTNAME || '0.0.0.0';
 const app = express();

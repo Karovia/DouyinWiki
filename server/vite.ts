@@ -6,7 +6,7 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 
-const isDev = process.env.COZE_PROJECT_ENV !== 'PROD';
+const isDev = process.env.NODE_ENV !== 'production';
 
 /**
  * 集成 Vite 开发服务器（中间件模式）

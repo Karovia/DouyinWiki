@@ -2,10 +2,16 @@ import { createClient, type Client } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql/node';
 import * as schema from './schema';
 import path from 'path';
+import fs from 'fs';
 
-const DB_PATH = process.env.COZE_PROJECT_ENV === 'PROD'
-  ? 'file:/tmp/douyin-wiki.db'
-  : `file:${path.resolve(process.cwd(), 'douyin-wiki.db')}`;
+const DATA_DIR = process.env.DATA_DIR || './data';
+const DB_PATH = process.env.DATABASE_URL || `file:${path.resolve(process.cwd(), DATA_DIR, 'douyin-wiki.db')}`;
+
+// 确保数据库目录存在
+const dbDir = path.dirname(DB_PATH.replace(/^file:/, ''));
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
 
 const client: Client = createClient({
   url: DB_PATH,
