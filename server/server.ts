@@ -5,12 +5,14 @@ import 'dotenv/config';
 import { createServer, type Server } from 'http';
 import express from 'express';
 import { createExpressMiddleware } from '@trpc/server/adapters/express';
+import { resolve } from 'path';
 import router from './routes/index';
 import { setupVite } from './vite';
 import { initDatabase } from './db/index';
 import { appRouter } from './trpc/root-router';
 import { createContext } from './trpc/trpc';
 import { db } from './db/index';
+import { getUploadsDir } from './connectors/storage-connector';
 
 // 初始化 Worker（副作用：注册任务处理器）
 import './workers/import-worker';
@@ -49,6 +51,52 @@ async function startServer(): Promise<Server> {
   // 添加请求体解析
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+
+  // /media 静态文件路由（本地存储的文件访问）
+  app.get('/media/*', (req, res, next) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawPath = (req.params as any)[0] || '';
+    const uploadsDir = getUploadsDir();
+
+    try {
+      // 安全检查：禁止包含 ..
+      if (rawPath.includes('..')) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
+
+      // 解码 URL 编码的 key
+      const decodedPath = decodeURIComponent(rawPath);
+
+      // 安全检查：解码后再次检查
+      if (decodedPath.includes('..')) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
+
+      // 解析为绝对路径
+      const requestedPath = resolve(uploadsDir, decodedPath);
+      const resolvedUploadsDir = resolve(uploadsDir);
+
+      // 确保请求的路径在 uploads 目录内
+      const isInside =
+        requestedPath.startsWith(resolvedUploadsDir + '\\') ||
+        requestedPath.startsWith(resolvedUploadsDir + '/') ||
+        requestedPath === resolvedUploadsDir;
+
+      if (!isInside) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
+
+      // 使用 express.static 服务文件
+      express.static(uploadsDir, {
+        fallthrough: false,
+      })(req, res, next);
+    } catch {
+      res.status(400).json({ error: 'Bad request' });
+    }
+  });
 
   // tRPC 中间件
   app.use(
