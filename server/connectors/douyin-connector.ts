@@ -1,19 +1,13 @@
-import { FetchClient } from 'coze-coding-dev-sdk';
-import type { FetchResponse, FetchContentItem } from 'coze-coding-dev-sdk';
-
 /**
  * 抖音视频连接器
- * 
- * 使用 FetchClient 获取抖音分享页面的结构化内容，
+ *
+ * 通过直接获取抖音分享页面的 HTML，
  * 从中提取视频元数据（标题、作者、封面、标签等）。
- * 
+ *
  * 优先级：
- * 1. FetchClient 结构化内容（标题、封面图、标签）
- * 2. RENDER_DATA / SSR JSON（完整元数据包括视频地址）
- * 3. 正则 fallback
+ * 1. RENDER_DATA / SSR JSON（完整元数据包括视频地址）
+ * 2. 正则 fallback
  */
-
-const fetchClient = new FetchClient();
 
 /** 抖音视频元数据 */
 export interface DouyinVideoMeta {
@@ -40,7 +34,7 @@ export function extractDouyinUrl(text: string): string | null {
 
 /**
  * 标准化抖音 URL（解析短链接 → 长链接）
- * 
+ *
  * 注意：抖音对无 Cookie 的请求可能返回首页而不是正确重定向，
  * 所以需要验证重定向结果是否包含视频 ID
  */
@@ -54,13 +48,13 @@ export async function normalizeDouyinUrl(shortUrl: string): Promise<string> {
       signal: AbortSignal.timeout(10000),
     });
     const finalUrl = resp.url;
-    
+
     // 验证重定向结果是否是有效的视频页面
     // 有效格式：https://www.douyin.com/video/123456789 或包含 modal_id 参数
     if (finalUrl && (finalUrl.includes('/video/') || finalUrl.includes('modal_id='))) {
       return finalUrl;
     }
-    
+
     // 如果重定向到首页或其他无效页面，保留原始 URL
     console.warn(`[DouyinConnector] Redirect to invalid URL: ${finalUrl}, keeping original: ${shortUrl}`);
     return shortUrl;
@@ -91,177 +85,45 @@ export async function fetchDouyinVideoMeta(shareUrl: string): Promise<DouyinVide
     // 1. 标准化 URL（尝试解析短链接）
     const normalizedUrl = await normalizeDouyinUrl(shareUrl);
     console.log(`[DouyinConnector] Normalized URL: ${normalizedUrl}`);
-    
-    // 如果标准化结果仍然是短链接（重定向失败），直接用 FetchClient
-    const isShortUrl = shareUrl.includes('v.douyin.com') && normalizedUrl === shareUrl;
 
-    // 2. 如果是有效的长链接，尝试从直接 HTML 获取 RENDER_DATA
-    if (!isShortUrl && normalizedUrl.includes('/video/')) {
-      const directHtml = await fetchRawHtml(normalizedUrl);
-      if (directHtml) {
-        const renderData = extractRenderData(directHtml);
-        if (renderData) {
-          const metaFromRender = extractMetaFromRenderData(renderData);
-          if (metaFromRender) {
-            console.log(`[DouyinConnector] Extracted from RENDER_DATA:`, JSON.stringify({
-              title: metaFromRender.title, author: metaFromRender.authorName,
-              duration: metaFromRender.duration,
-              hasCover: !!metaFromRender.coverUrl,
-              hasVideoUrl: !!metaFromRender.videoPlayUrl,
-              tags: metaFromRender.tags,
-            }));
-            // RENDER_DATA 可能没有封面，用正则补充
-            if (!metaFromRender.coverUrl) {
-              metaFromRender.coverUrl = extractCoverUrl(directHtml);
-            }
-            return metaFromRender;
-          }
-        }
-        // 正则 fallback 从 HTML
-        const regexMeta = extractMetaFromHtml(directHtml, defaultMeta);
-        if (regexMeta.title !== defaultMeta.title || regexMeta.coverUrl) {
-          console.log(`[DouyinConnector] Extracted from HTML regex:`, JSON.stringify({
-            title: regexMeta.title, hasCover: !!regexMeta.coverUrl,
+    // 2. 尝试从 HTML 获取 RENDER_DATA
+    const directHtml = await fetchRawHtml(normalizedUrl);
+    if (directHtml) {
+      const renderData = extractRenderData(directHtml);
+      if (renderData) {
+        const metaFromRender = extractMetaFromRenderData(renderData);
+        if (metaFromRender) {
+          console.log(`[DouyinConnector] Extracted from RENDER_DATA:`, JSON.stringify({
+            title: metaFromRender.title, author: metaFromRender.authorName,
+            duration: metaFromRender.duration,
+            hasCover: !!metaFromRender.coverUrl,
+            hasVideoUrl: !!metaFromRender.videoPlayUrl,
+            tags: metaFromRender.tags,
           }));
-          return regexMeta;
+          // RENDER_DATA 可能没有封面，用正则补充
+          if (!metaFromRender.coverUrl) {
+            metaFromRender.coverUrl = extractCoverUrl(directHtml);
+          }
+          return metaFromRender;
         }
+      }
+      // 正则 fallback 从 HTML
+      const regexMeta = extractMetaFromHtml(directHtml, defaultMeta);
+      if (regexMeta.title !== defaultMeta.title || regexMeta.coverUrl) {
+        console.log(`[DouyinConnector] Extracted from HTML regex:`, JSON.stringify({
+          title: regexMeta.title, hasCover: !!regexMeta.coverUrl,
+        }));
+        return regexMeta;
       }
     }
 
-    // 3. Fallback: 用 FetchClient 获取结构化内容（支持短链接重定向）
-    console.log('[DouyinConnector] Falling back to FetchClient structured content');
-    const response: FetchResponse = await fetchClient.fetch(shareUrl);
-
-    if (!response?.content || response.content.length === 0) {
-      console.warn('[DouyinConnector] Empty response from FetchClient');
-      return defaultMeta;
-    }
-
-    return extractMetaFromStructuredContent(response, defaultMeta);
+    console.warn('[DouyinConnector] Failed to extract metadata from HTML');
+    return defaultMeta;
 
   } catch (error) {
     console.error('[DouyinConnector] Failed:', error);
     return defaultMeta;
   }
-}
-
-/**
- * 从 FetchClient 的结构化内容中提取元数据
- */
-function extractMetaFromStructuredContent(
-  response: FetchResponse,
-  defaultMeta: DouyinVideoMeta
-): DouyinVideoMeta {
-  let fullText = '';
-  let coverUrl: string | null = null;
-  const images: string[] = [];
-
-  for (const item of response.content) {
-    // text 类型
-    if ('text' in item && typeof item.text === 'string') {
-      fullText += item.text + '\n';
-    }
-    // image 类型 — 封面图（支持多种字段格式）
-    if ('image' in item && item.image) {
-      let imgUrl: string | null = null;
-      if (typeof item.image === 'string') {
-        imgUrl = item.image;
-      } else {
-        const img = item.image as Record<string, unknown>;
-        imgUrl = img.url ? String(img.url) :
-                  img.src ? String(img.src) :
-                  img.uri ? String(img.uri) :
-                  null;
-      }
-      if (imgUrl) {
-        images.push(imgUrl);
-        if (!coverUrl) coverUrl = imgUrl;
-      }
-    }
-    // 某些 SDK 版本使用 type='image' + url 字段
-    const itemAsRecord = item as unknown as Record<string, unknown>;
-    if (itemAsRecord.type === 'image' && itemAsRecord.url) {
-      const imgUrl = String(itemAsRecord.url);
-      if (imgUrl && !images.includes(imgUrl)) {
-        images.push(imgUrl);
-        if (!coverUrl) coverUrl = imgUrl;
-      }
-    }
-  }
-
-  console.log(`[DouyinConnector] Structured content: text=${fullText.length} chars, images=${images.length}`);
-
-  // 从结构化文本中提取标题（通常是第一个非空行）
-  const lines = fullText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  const title = lines[0] || defaultMeta.title;
-
-  // 提取标签（#xxx 格式）
-  const tags = extractTags(fullText);
-
-  // 提取作者（在标题后面通常有 "作者: xxx" 或 "创作者 xxx" 的信息）
-  const authorName = extractAuthorFromStructured(fullText);
-
-  // 提取时长（格式 "04:07"）
-  const duration = extractDurationFromStructured(fullText);
-
-  // 尝试从文本中提取视频 URL
-  const videoPlayUrl = extractVideoPlayUrl(fullText);
-
-  // 如果没有从 image 类型拿到封面，尝试从文本中提取
-  if (!coverUrl) {
-    coverUrl = extractCoverUrl(fullText);
-  }
-
-  const meta: DouyinVideoMeta = {
-    title,
-    authorName,
-    authorId: null,
-    coverUrl,
-    duration,
-    description: lines.slice(1, 3).join(' ') || null,
-    videoPlayUrl,
-    tags,
-  };
-
-  console.log(`[DouyinConnector] Extracted from structured:`, JSON.stringify({
-    title: meta.title, author: meta.authorName, duration: meta.duration,
-    hasCover: !!meta.coverUrl, hasVideoUrl: !!meta.videoPlayUrl,
-    tags: meta.tags,
-  }));
-
-  return meta;
-}
-
-/**
- * 从结构化文本中提取作者名
- */
-function extractAuthorFromStructured(text: string): string | null {
-  // FetchClient 返回的内容通常包含 "xxx · 粉丝XX万" 格式的作者信息
-  const authorPatterns = [
-    /([^\s·]+)\s*·\s*粉丝/,    // "地球npc · 粉丝15.6万"
-    /作者[：:]\s*([^\s,，]+)/,   // "作者：xxx"
-    /创作者[：:]\s*([^\s,，]+)/, // "创作者：xxx"
-    /@([^\s]+)/,                 // "@作者名"
-  ];
-  for (const pattern of authorPatterns) {
-    const match = text.match(pattern);
-    if (match && match[1].length < 30) return match[1];
-  }
-  return null;
-}
-
-/**
- * 从结构化文本中提取时长
- */
-function extractDurationFromStructured(text: string): number | null {
-  // 匹配 "04:07" 或 "1:23" 格式
-  const match = text.match(/\b(\d{1,2}):(\d{2})\b/);
-  if (match) {
-    const minutes = parseInt(match[1], 10);
-    const seconds = parseInt(match[2], 10);
-    return minutes * 60 + seconds;
-  }
-  return null;
 }
 
 // ============ HTML 解析辅助函数 ============

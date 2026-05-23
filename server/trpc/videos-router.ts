@@ -36,7 +36,7 @@ export const videosRouter = router({
           let coverUrl = v.coverUrl;
           if (v.coverFileKey) {
             try {
-              coverUrl = await getSignedUrl(v.coverFileKey, 3600);
+              coverUrl = await getSignedUrl(v.coverFileKey);
             } catch {
               // 签名失败，使用原始 URL
             }
@@ -113,7 +113,7 @@ export const videosRouter = router({
       let coverUrl = video.coverUrl;
       if (video.coverFileKey) {
         try {
-          coverUrl = await getSignedUrl(video.coverFileKey, 3600);
+          coverUrl = await getSignedUrl(video.coverFileKey);
         } catch {
           // 签名失败，使用原始 URL
         }
@@ -178,7 +178,7 @@ export const videosRouter = router({
         throw new Error('视频文件不存在');
       }
 
-      const playUrl = await getSignedUrl(video.videoFileKey, 7200); // 2 小时有效
+      const playUrl = await getSignedUrl(video.videoFileKey);
       return { playUrl };
     }),
 
@@ -191,7 +191,7 @@ export const videosRouter = router({
       workspaceId: z.string(),
     }))
     .mutation(async (opts) => {
-      const { videoId, workspaceId } = opts.input;
+      const { videoId } = opts.input;
 
       await deleteVideoWithFiles(videoId);
 

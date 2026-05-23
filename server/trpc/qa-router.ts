@@ -52,7 +52,7 @@ export const qaRouter = t.router({
       let coverUrl: string | undefined;
       if (video.coverFileKey) {
         try {
-          coverUrl = await getSignedUrl(video.coverFileKey, 600);
+          coverUrl = await getSignedUrl(video.coverFileKey);
         } catch {
           coverUrl = undefined;
         }
@@ -89,7 +89,7 @@ export const qaRouter = t.router({
         // 获取视频签名 URL（供 LLM 观看）
         let videoUrl: string;
         try {
-          videoUrl = await getSignedUrl(video.videoFileKey, 600);
+          videoUrl = await getSignedUrl(video.videoFileKey);
         } catch (err) {
           console.error('[QA] Failed to get video signed URL:', err);
           return {

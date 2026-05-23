@@ -7,7 +7,7 @@
 - **状态管理**: React useState + useEffect (轻量级)
 - **API**: tRPC (Express adapter) — 前端通过 @trpc/client 调用
 - **数据库**: libSQL (SQLite兼容) + Drizzle ORM (@libsql/client, 纯JS无原生依赖)
-- **AI**: coze-coding-dev-sdk (LLM + Fetch URL + S3 Storage) — 后端调用
+- **AI**: 可配置多 Provider（OpenAI / Ollama / LM Studio / vLLM 等兼容 OpenAI API 的服务）— 后端调用
 
 ## 目录结构
 

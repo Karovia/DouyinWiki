@@ -95,7 +95,7 @@ export const mtaRouter = t.router({
         let videoUrl: string | undefined;
         if (video.videoFileKey) {
           try {
-            videoUrl = await getSignedUrl(video.videoFileKey, 600);
+            videoUrl = await getSignedUrl(video.videoFileKey);
           } catch {
             // 忽略，降级为摘要分析
           }
@@ -105,13 +105,11 @@ export const mtaRouter = t.router({
         let coverUrl = video.coverUrl;
         if (video.coverFileKey) {
           try {
-            coverUrl = await getSignedUrl(video.coverFileKey, 600);
+            coverUrl = await getSignedUrl(video.coverFileKey);
           } catch {
             // 使用原始 URL
           }
         }
-
-        const tags = video.tags ? JSON.parse(video.tags as string) : [];
 
         const recipe = await generateCookingRecipe({
           videoTitle: video.title || '未知视频',

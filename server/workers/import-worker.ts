@@ -155,7 +155,6 @@ async function processJob(jobId: string): Promise<void> {
         videoFileKey = await uploadFromUrl(
           metadata.videoPlayUrl,
           `videos/${job.videoId}.mp4`,
-          'video/mp4',
         );
         console.log(`[Worker] Video uploaded: ${videoFileKey}`);
       } catch (videoUploadError) {
@@ -173,7 +172,6 @@ async function processJob(jobId: string): Promise<void> {
         coverFileKey = await uploadFromUrl(
           metadata.coverUrl,
           `covers/${job.videoId}.jpg`,
-          'image/jpeg',
         );
         console.log(`[Worker] Cover uploaded: ${coverFileKey}`);
       } catch (coverUploadError) {
@@ -199,7 +197,7 @@ async function processJob(jobId: string): Promise<void> {
     let coverUrlForLLM: string | undefined;
     if (coverFileKey) {
       try {
-        coverUrlForLLM = await getSignedUrl(coverFileKey, 600); // 10 分钟有效
+        coverUrlForLLM = await getSignedUrl(coverFileKey);
       } catch {
         coverUrlForLLM = undefined;
       }

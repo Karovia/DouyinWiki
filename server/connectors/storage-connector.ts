@@ -51,7 +51,7 @@ function isPathSafe(filePath: string): boolean {
  * 从 URL 下载文件并保存到本地
  * @returns 存储的 key（与传入的 fileName 一致）
  */
-export async function uploadFromUrl(url: string, fileName: string, contentType?: string): Promise<string> {
+export async function uploadFromUrl(url: string, fileName: string): Promise<string> {
   console.log(`[Storage] Uploading from URL: ${url} → ${fileName}`);
 
   // 安全检查
@@ -103,7 +103,7 @@ export async function uploadFromUrl(url: string, fileName: string, contentType?:
 /**
  * 上传 Buffer 到本地文件系统
  */
-export async function uploadBuffer(buffer: Buffer, fileName: string, contentType: string): Promise<string> {
+export async function uploadBuffer(buffer: Buffer, fileName: string): Promise<string> {
   console.log(`[Storage] Uploading buffer: ${buffer.length} bytes → ${fileName}`);
 
   // 安全检查
@@ -133,9 +133,8 @@ export async function uploadBuffer(buffer: Buffer, fileName: string, contentType
  * 生成访问 URL
  * 本地文件不需要签名，直接通过 /media 静态路由访问
  * @param key 文件 key
- * @param _expireTime 保留参数以兼容签名 URL 接口（本地文件永久可访问）
  */
-export async function getSignedUrl(key: string, _expireTime?: number): Promise<string> {
+export async function getSignedUrl(key: string): Promise<string> {
   // 安全检查
   if (key.includes('..')) {
     throw new Error(`Invalid key: contains ".."`);

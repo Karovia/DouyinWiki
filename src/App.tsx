@@ -11,7 +11,7 @@ import DeepResearchPage from './components/DeepResearchPage';
 import { SettingsPage } from './components/SettingsPage';
 import { WikiItem, TaskStatus } from './types';
 import { AnimatePresence, motion } from 'motion/react';
-import { CheckCircle2, X, ExternalLink, Tag, AlertCircle, MessageCircle, Send, Trash2, Loader2, Play, ChefHat, RefreshCw, Dumbbell, MapPin, BookOpen, Search } from 'lucide-react';
+import { CheckCircle2, X, ExternalLink, Tag, AlertCircle, MessageCircle, Send, Trash2, Loader2, Play, ChefHat, RefreshCw, Dumbbell, MapPin, Search } from 'lucide-react';
 import { importApi, videosApi, qaApi, mtaApi } from './trpc';
 import type { CookingRecipe, MtaRecipeItem, MtaCategory, TrainingPlan, TravelPlan, ResearchDoc } from './trpc';
 
@@ -188,20 +188,13 @@ export default function App() {
   const [mtaRecipe, setMtaRecipe] = useState<CookingRecipe | null>(null);
   const [mtaLoading, setMtaLoading] = useState(false);
   const [isTraining, setIsTraining] = useState(false);
-  const [showTrainingPage, setShowTrainingPage] = useState(false);
   const [mtaTraining, setMtaTraining] = useState<TrainingPlan | null>(null);
   const [mtaTrainingLoading, setMtaTrainingLoading] = useState(false);
   const [isPlanning, setIsPlanning] = useState(false);
-  const [showPlanningPage, setShowPlanningPage] = useState(false);
   const [mtaPlanning, setMtaPlanning] = useState<TravelPlan | null>(null);
   const [mtaPlanningLoading, setMtaPlanningLoading] = useState(false);
   const [showResearchPage, setShowResearchPage] = useState(false);
-  const [researchDocs, setResearchDocs] = useState<ResearchDoc[]>([]);
-  const [researchDocsLoading, setResearchDocsLoading] = useState(false);
-  const [researchTopic, setResearchTopic] = useState('');
-  const [researchContent, setResearchContent] = useState('');
-  const [researchLoading, setResearchLoading] = useState(false);
-  const [activeResearchDoc, setActiveResearchDoc] = useState<ResearchDoc | null>(null);
+  const [researchDocs] = useState<ResearchDoc[]>([]);
   const [researchFromMta, setResearchFromMta] = useState(false);
   const [mtaList, setMtaList] = useState<MtaRecipeItem[]>([]);
   const [mtaListLoading, setMtaListLoading] = useState(false);
@@ -645,10 +638,6 @@ export default function App() {
     setMtaTraining(null);
     setMtaPlanning(null);
     setShowResearchPage(true);
-    setResearchTopic('');
-    setResearchContent('');
-    setActiveResearchDoc(null);
-    let targetVideoId = videoId || detailVideo?.id;
     if (videoId && (!detailVideo || detailVideo.id !== videoId)) {
       try {
         const result = await videosApi.detail({ videoId, workspaceId: 'ws_default' });
@@ -669,65 +658,10 @@ export default function App() {
             platform: v.platform,
             createdAt: v.createdAt,
           });
-          targetVideoId = v.id;
         }
       } catch {
         // ignore
       }
-    }
-    if (targetVideoId) {
-      loadResearchDocs(targetVideoId);
-    }
-  };
-
-  const loadResearchDocs = useCallback(async (vid?: string) => {
-    const targetId = vid || detailVideo?.id;
-    if (!targetId) return;
-    setResearchDocsLoading(true);
-    try {
-      const docs = await mtaApi.researchList({ videoId: targetId, workspaceId: 'ws_default' });
-      setResearchDocs(docs);
-    } catch {
-      setResearchDocs([]);
-    } finally {
-      setResearchDocsLoading(false);
-    }
-  }, [detailVideo]);
-
-  const handleSubmitResearchTopic = async (topic: string) => {
-    if (!detailVideo || !topic.trim()) return;
-    setResearchLoading(true);
-    setResearchContent('');
-    try {
-      const result = await mtaApi.research({ videoId: detailVideo.id, workspaceId: 'ws_default', topic: topic.trim() });
-      if (result.content) {
-        setResearchContent(result.content);
-      } else {
-        setResearchContent('研究生成失败，请稍后重试');
-      }
-    } catch {
-      setResearchContent('研究生成失败，请稍后重试');
-    }
-    setResearchLoading(false);
-  };
-
-  const handleSaveResearchDoc = async () => {
-    if (!detailVideo || !researchContent || !researchTopic) return;
-    try {
-      await mtaApi.researchSave({ videoId: detailVideo.id, workspaceId: 'ws_default', title: researchTopic, topic: researchTopic, content: researchContent });
-      loadResearchDocs();
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleDeleteResearchDoc = async (docId: string) => {
-    if (!detailVideo) return;
-    try {
-      await mtaApi.researchDelete({ docId, workspaceId: 'ws_default' });
-      loadResearchDocs();
-    } catch {
-      // ignore
     }
   };
 
@@ -1206,15 +1140,12 @@ export default function App() {
             docs={researchDocs}
             onClose={() => {
               setShowResearchPage(false);
-              setResearchTopic('');
-              setResearchContent('');
-              setActiveResearchDoc(null);
               if (researchFromMta) {
                 setShowMtaPage(true);
                 loadMtaList('research');
               }
             }}
-            onDocsChange={loadResearchDocs}
+            onDocsChange={() => {}}
             workspaceId="ws_default"
           />
         )}

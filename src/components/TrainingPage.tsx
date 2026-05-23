@@ -152,7 +152,7 @@ function FloatingTimer({
     if (intervalRef.current) clearInterval(intervalRef.current);
   };
 
-  const handlePointerDown = (e: React.PointerEvent) => {
+  const handlePointerDown = () => {
     hasMoved.current = false;
     longPressTimer.current = setTimeout(() => {
       if (!hasMoved.current) resetTimer();
@@ -389,7 +389,6 @@ function StepCard({
   step: TrainingStep;
   total: number;
 }) {
-  const [count, setCount] = useState(0);
   const [showTimer, setShowTimer] = useState(false);
 
   return (
@@ -433,7 +432,7 @@ function StepCard({
         {/* Counter for reps */}
         {step.reps && (
           <div className="mb-4">
-            <Counter target={step.reps} onChange={setCount} />
+            <Counter target={step.reps} />
           </div>
         )}
 

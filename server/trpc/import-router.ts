@@ -7,7 +7,6 @@ import { createHash } from 'crypto';
 import {
   JOB_STATUSES,
   isValidTransition,
-  getProgressForStatus,
   type JobStatus,
 } from '../domain/types';
 import { enqueueJob } from '../workers/worker-queue';

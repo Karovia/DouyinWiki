@@ -182,7 +182,7 @@ export default function PlanningPage({ plan, onBack }: PlanningPageProps) {
   const [direction, setDirection] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const x = useMotionValue(0);
-  const rotateX = useTransform(x, [-300, 0, 300], [25, 0, -25]);
+  useTransform(x, [-300, 0, 300], [25, 0, -25]);
 
   useEffect(() => {
     savePage(currentIndex);
